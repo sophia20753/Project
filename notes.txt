@@ -1,0 +1,7 @@
+cust instruction: size of kernel, address of kernel
+cust instruction: memory address of first element of matrix, input/output flag
+cust instruction: compute
+
+chisel algorithm (1): manually input using poke, test 3x3 convolution
+chisel algorithm (2): test zero padding 
+chisel algorithm (3): test tile by tile convolution for 32x32
