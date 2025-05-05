@@ -1,0 +1,57 @@
+#include <stdio.h>
+
+#define N 3
+#define K 3
+
+void conv(float input[N][N], float kernel[K][K], float output[N][N]) {
+    int pad = K / 2;
+
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            float sum = 0.0;
+            for (int m = 0; m < K; m++) {
+                for (int n = 0; n < K; n++) {
+                    int x = i + m - pad;
+                    int y = j + n - pad;
+
+                    if (x >= 0 && x < N && y >= 0 && y < N) {
+                        sum += kernel[m][n] * input[x][y];
+                    }
+                }
+            }
+            output[i][j] = sum;
+        }
+    }
+}
+
+int main() {
+    // Input 3x3 matrix
+    float input[N][N] = {
+        {1, 2, 3},
+        {4, 5, 6},
+        {7, 8, 9}
+    };
+
+    // 3x3 kernel (e.g., simple edge detection kernel)
+    float kernel[K][K] = {
+        {0, -1, 0},
+        {-1, 5, -1},
+        {0, -1, 0}
+    };
+
+    // Output 3x3 matrix
+    float output[N][N];
+
+    // Perform 2D convolution
+    conv(input, kernel, output);
+
+    // Print output matrix
+    printf("Output:\n");
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < N; j++) {
+            printf("%6.2f ", output[i][j]);
+        }
+        printf("\n");
+    }
+    return 0;
+}
