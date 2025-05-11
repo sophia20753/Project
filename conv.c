@@ -15,11 +15,13 @@ void conv(float input[N][N], float kernel[K][K], float output[N][N]) {
                     int y = j + n - pad;
 
                     if (x >= 0 && x < N && y >= 0 && y < N) {
+                        printf("i = %d, j = %d, m = %d, n = %d, x = %d, y = %d | %f * %f\n", i, j, m, n, x, y, kernel[m][n], input[x][y]);
                         sum += kernel[m][n] * input[x][y];
                     }
                 }
             }
             output[i][j] = sum;
+            printf("Sum = %f\n", sum);
         }
     }
 }
@@ -34,9 +36,9 @@ int main() {
 
     // 3x3 kernel (e.g., simple edge detection kernel)
     float kernel[K][K] = {
-        {0, -1, 0},
-        {-1, 5, -1},
-        {0, -1, 0}
+        {1, 2, 3},
+        {4, 5, 6},
+        {7, 8, 9}
     };
 
     // Output 3x3 matrix
