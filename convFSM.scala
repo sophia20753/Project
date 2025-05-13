@@ -86,13 +86,13 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
                 acc := acc + (mac.io.a * mac.io.b)
             }
 
-            printf(p"Cycle: $count, kerCol = $kerCol, kerRow = $kerRow, inCol = $inCol, inRow = $inRow, outIdx: $outIdx, mac.a: ${mac.io.a}, mac.b: ${mac.io.b}, acc: $acc, acc1: $acc1, valid = $valid, macWindowComplete = $macWindowComplete, commitResultNext = $commitResultNext, lastOutputPixel = $lastOutputPixel, finishedAll = $finishedAll\n")
+            
 
             // Kernel scan control
             when(kerCol === (K - 1).U) {
                 kerCol := 0.U
                 when(kerRow === (K - 1).U) {
-                    kerRow := 0.U
+                    //kerRow := 0.U
 
                     // After full kernel scan, increment input pos
                     when(inCol === (N - 1).U) {
@@ -117,17 +117,22 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
             when(resetAcc) {
                 acc1 := acc
                 acc := 0.U
+                kerCol := 0.U
+                kerRow := 0.U
             }
 
             when(commitResultNext) {
                 result(outRow)(outCol) := acc1
                 acc1 := 0.U
                 outIdx := outIdx + 1.U
+                when(finishedAll) {
+                    state := sDone
+                }
             }
-
-            when(finishedAll) {
-                state := sDone
-            }
+            printf(p"Cycle: $count, kerCol = $kerCol, kerRow = $kerRow, inCol = $inCol, inRow = $inRow, outIdx: $outIdx, " + 
+            p"mac.a: ${mac.io.a}, mac.b: ${mac.io.b}, acc: $acc, acc1: $acc1, valid = $valid, macWindowComplete = $macWindowComplete, " + 
+            p"resetAcc = $resetAcc, commitResultNext = $commitResultNext, lastOutputPixel = $lastOutputPixel, finishedAll = $finishedAll\n")
+            
         }
 
         is(sDone) {
