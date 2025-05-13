@@ -5,3 +5,9 @@ cust instruction: compute
 chisel algorithm (1): manually input using poke, test 3x3 convolution
 chisel algorithm (2): test zero padding 
 chisel algorithm (3): test tile by tile convolution for 32x32
+
+
+
+tiled:
+output stationary -> load extra input, each output tile only loaded once
+input stationary -> input loaded only once, output MAC'd for multiple iterations (less favourable as requires reading output and then adding)

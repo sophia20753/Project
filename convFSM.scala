@@ -1,18 +1,3 @@
-class MACUnit extends Module {
-    val io = IO(new Bundle {
-        val a = Input(UInt(32.W))
-        val b = Input(UInt(32.W))
-        val en = Input(Bool())
-        val out = Output(UInt(32.W))
-    })
-
-    val product = RegInit(0.U(64.W))
-    when(io.en) {
-        product := io.a * io.b
-    }
-    io.out := product
-}
-
 class ConvolutionFSM(val N: Int, val K: Int) extends Module {
     val pad = (K - 1) / 2
 
@@ -44,17 +29,16 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
     val acc1 = RegInit(0.U(64.W))
     val result = RegInit(VecInit(Seq.fill(N)(VecInit(Seq.fill(N)(0.U(64.W))))))
 
-    val mac = Module(new MACUnit)
-    mac.io.a := 0.U
-    mac.io.b := 0.U
-    mac.io.en := false.B
+    val a = RegInit(0.U(32.W))
+    val b = RegInit(0.U(32.W))
 
     io.output := result
     io.done := false.B
 
     // Flags for pipeline state
     val macWindowComplete = (kerRow === (K - 1).U && kerCol === (K - 1).U)
-    val resetAcc = RegNext(macWindowComplete, init = false.B)
+    val stall = RegNext(macWindowComplete, init = false.B)
+    val resetAcc = RegNext(stall, init = false.B)
     val commitResultNext = RegNext(resetAcc, init = false.B)
     val lastOutputPixel = (inRow === (N - 1).U) && (inCol === (N - 1).U)
     val finishedAll = RegInit(false.B)
@@ -78,21 +62,22 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
             val y = inCol + kerCol - pad.U
             val valid = x >= 0.U && x < N.U && y >= 0.U && y < N.U
             count := count + 1.U
+            
 
             when(valid) {
-                mac.io.a := io.kernel(kerRow)(kerCol)
-                mac.io.b := io.input(x)(y)
-                mac.io.en := true.B
-                acc := acc + (mac.io.a * mac.io.b)
+                a := io.kernel(kerRow)(kerCol)
+                b := io.input(x)(y)
+            }.otherwise {
+                a := 0.U
+                b := 0.U
             }
-
+            acc := acc + (a * b)
             
 
             // Kernel scan control
             when(kerCol === (K - 1).U) {
                 kerCol := 0.U
                 when(kerRow === (K - 1).U) {
-                    //kerRow := 0.U
 
                     // After full kernel scan, increment input pos
                     when(inCol === (N - 1).U) {
@@ -117,6 +102,8 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
             when(resetAcc) {
                 acc1 := acc
                 acc := 0.U
+                a := 0.U
+                b := 0.U
                 kerCol := 0.U
                 kerRow := 0.U
             }
@@ -130,7 +117,7 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
                 }
             }
             printf(p"Cycle: $count, kerCol = $kerCol, kerRow = $kerRow, inCol = $inCol, inRow = $inRow, outIdx: $outIdx, " + 
-            p"mac.a: ${mac.io.a}, mac.b: ${mac.io.b}, acc: $acc, acc1: $acc1, valid = $valid, macWindowComplete = $macWindowComplete, " + 
+            p"a: ${a}, b: ${b}, acc: $acc, acc1: $acc1, valid = $valid, macWindowComplete = $macWindowComplete, " + 
             p"resetAcc = $resetAcc, commitResultNext = $commitResultNext, lastOutputPixel = $lastOutputPixel, finishedAll = $finishedAll\n")
             
         }
@@ -143,6 +130,7 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
         }
     }
 }
+
 
 
 
