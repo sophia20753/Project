@@ -1,7 +1,7 @@
 #include <stdio.h>
 
-#define N 3
-#define K 3
+#define N 8
+#define K 5
 
 void conv(float input[N][N], float kernel[K][K], float output[N][N]) {
     int pad = K / 2;
@@ -15,31 +15,65 @@ void conv(float input[N][N], float kernel[K][K], float output[N][N]) {
                     int y = j + n - pad;
 
                     if (x >= 0 && x < N && y >= 0 && y < N) {
-                        printf("i = %d, j = %d, m = %d, n = %d, x = %d, y = %d | %f * %f\n", i, j, m, n, x, y, kernel[m][n], input[x][y]);
+                        //printf("i = %d, j = %d, m = %d, n = %d, x = %d, y = %d | %f * %f\n", i, j, m, n, x, y, kernel[m][n], input[x][y]);
                         sum += kernel[m][n] * input[x][y];
                     }
                 }
             }
             output[i][j] = sum;
-            printf("Sum = %f\n", sum);
+            //printf("Sum = %f\n", sum);
         }
     }
 }
 
 int main() {
     // Input 3x3 matrix
+    //float input[N][N] = {
+    //    {1, 2, 3},
+    //    {4, 5, 6},
+    //    {7, 8, 9}
+    //};
+    
+    //float input[N][N] = {
+    //    {1, 2, 3, 4, 5, 6, 7, 8, 9},
+    //    {1, 2, 3, 4, 5, 6, 7, 8, 9},
+    //    {1, 2, 3, 4, 5, 6, 7, 8, 9},
+    //    {1, 2, 3, 4, 5, 6, 7, 8, 9},
+    //    {1, 2, 3, 4, 5, 6, 7, 8, 9},
+    //    {1, 2, 3, 4, 5, 6, 7, 8, 9},
+    //    {1, 2, 3, 4, 5, 6, 7, 8, 9},
+    //    {1, 2, 3, 4, 5, 6, 7, 8, 9},
+    //    {1, 2, 3, 4, 5, 6, 7, 8, 9}
+    //};
+    
     float input[N][N] = {
-        {1, 2, 3},
-        {4, 5, 6},
-        {7, 8, 9}
+        {1, 2, 3, 4, 5, 6, 7, 8},
+        {1, 2, 3, 4, 5, 6, 7, 8},
+        {1, 2, 3, 4, 5, 6, 7, 8},
+        {1, 2, 3, 4, 5, 6, 7, 8},
+        {1, 2, 3, 4, 5, 6, 7, 8},
+        {1, 2, 3, 4, 5, 6, 7, 8},
+        {1, 2, 3, 4, 5, 6, 7, 8},
+        {1, 2, 3, 4, 5, 6, 7, 8}
     };
 
     // 3x3 kernel (e.g., simple edge detection kernel)
+    //float kernel[K][K] = {
+    //    {1, 2, 3},
+    //    {4, 5, 6},
+    //    {7, 8, 9}
+    //};
+    
+    
     float kernel[K][K] = {
-        {1, 2, 3},
-        {4, 5, 6},
-        {7, 8, 9}
+        {1, 2, 3, 4, 5},
+        {6, 7, 8, 9, 10},
+        {11, 12, 13, 14, 15},
+        {16, 17, 18, 19, 20},
+        {21, 22, 23, 24, 25}
     };
+    
+    
 
     // Output 3x3 matrix
     float output[N][N];
