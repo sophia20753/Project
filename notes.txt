@@ -1,6 +1,24 @@
-cust instruction: size of kernel, address of kernel
-cust instruction: memory address of first element of matrix, input/output flag
-cust instruction: compute
+cust instruction: doLoadKernel
+    opcode (0-6): 0b0001011 (custom-0)
+    rd (7-11): X
+    funct3 (12-14): 0b011
+    rs1 (15-19): size of kernel (0b0 - 1x1, 0b1 - 3x3, 0b10 - 5x5)
+    rs2 (20-24): memory address of first element of kernel
+    funct7 (25-31): 0b0000000
+cust instruction: doLoadMatrix
+    opcode (0-6): 0b0001011 (custom-0)
+    rd (7-11): X
+    funct3 (12-14): 0b011
+    rs1 (15-19): 0b0 - input matrix, 0b1 - output matrix
+    rs2 (20-24): memory address of first element of matrix
+    funct7 (25-31): 0b0000001
+cust instruction: doCompute
+    opcode (0-6): 0b0001011 (custom-0)
+    rd (7-11): X
+    funct3 (12-14): 0b000
+    rs1 (15-19): X
+    rs2 (20-24): X
+    funct7 (25-31): 0b0000010
 
 chisel algorithm (1): manually input using poke, test 3x3 convolution
 chisel algorithm (2): test zero padding 
