@@ -26,20 +26,11 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
 
     val count = RegInit(0.U(32.W))
     val acc_buffer = RegInit(0.U(64.W))
-    val acc1 = RegInit(0.U(64.W))
-    val acc2 = RegInit(0.U(64.W))
-    val acc3 = RegInit(0.U(64.W))
-    val acc = RegInit(VecInit(Seq.fill(N)(0.U(64.W))))
+    val acc = RegInit(VecInit(Seq.fill(K)(VecInit(Seq.fill(K)(0.U(64.W))))))
     val result = RegInit(VecInit(Seq.fill(N)(VecInit(Seq.fill(N)(0.U(64.W))))))
 
-    val a1 = RegInit(0.U(32.W))
-    val b1 = RegInit(0.U(32.W))
-    val a2 = RegInit(0.U(32.W))
-    val b2 = RegInit(0.U(32.W))
-    val a3 = RegInit(0.U(32.W))
-    val b3 = RegInit(0.U(32.W))
-    val a = RegInit(VecInit(Seq.fill(N)(0.U(32.W))))
-    val b = RegInit(VecInit(Seq.fill(N)(0.U(32.W))))
+    val a = RegInit(VecInit(Seq.fill(K)(VecInit(Seq.fill(K)(0.U(32.W))))))
+    val b = RegInit(VecInit(Seq.fill(K)(VecInit(Seq.fill(K)(0.U(32.W))))))
 
     io.output := result
     io.done := false.B
@@ -59,9 +50,13 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
                 inCol := 0.U
                 kerRow := 0.U
                 kerCol := 0.U
-                acc1 := 0.U
-                acc2 := 0.U
-                acc3 := 0.U
+                for (i <- 0 until K) {
+                    for (j <- 0 until K) {
+                        acc(i)(j) := 0.U
+                        a(i)(j) := 0.U
+                        b(i)(j) := 0.U
+                    }
+                }
                 outIdx := 0.U
                 finishedAll := false.B
                 state := sCompute
@@ -76,18 +71,20 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
             var valid = false.B
 
             for (i <- 0 until K) {
-                x = (inRow +& kerRow - pad.U)(log2Ceil(N) + 1 - 1, 0)
-                y = (inCol +& kerCol - pad.U + i.U)(log2Ceil(N) + 1 - 1, 0)
-                valid = x >= 0.U && x < N.U && y >= 0.U && y < N.U && kerRow < K.U && kerCol < K.U
+                for (j <- 0 until K) {
+                    x = (inRow +& kerRow - pad.U + j.U)(log2Ceil(N) + 1 - 1, 0)
+                    y = (inCol +& kerCol - pad.U + i.U)(log2Ceil(N) + 1 - 1, 0)
+                    valid = x >= 0.U && x < N.U && y >= 0.U && y < N.U && kerRow < K.U && kerCol < K.U
 
-                when(valid) {
-                    a(i) := io.kernel(kerRow)(kerCol+i.U)
-                    b(i) := io.input(x)(y)
-                }.otherwise {
-                    a(i) := 0.U
-                    b(i) := 0.U
+                    when(valid) {
+                        a(i)(j) := io.kernel(kerRow+j.U)(kerCol+i.U)
+                        b(i)(j) := io.input(x)(y)
+                    }.otherwise {
+                        a(i)(j) := 0.U
+                        b(i)(j) := 0.U
+                    }
+                    acc(i)(j) := acc(i)(j) + (a(i)(j) * b(i)(j))
                 }
-                acc(i) := acc(i) + (a(i) * b(i))
             }
 
             
@@ -95,7 +92,7 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
             // Kernel scan control
             when(kerCol >= (K - 1).U) {
                 kerCol := 0.U
-                when(kerRow === (K - 1).U) {
+                when(kerRow >= (K - 1).U) {
                     kerRow := 0.U
                     // After full kernel scan, increment input pos
                     when(inCol === (N - 1).U) {
@@ -110,20 +107,23 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
                         inCol := inCol + 1.U
                     }
                 }.otherwise {
-                    kerRow := kerRow + 1.U
+                    kerRow := kerRow + K.U
                 }
             }.otherwise {
                 kerCol := kerCol + K.U
             }
-
+            
+            
             // Commit result from previous kernel window
             when(resetAcc) {
                 var sum = 0.U
                 for (i <- 0 until K) {
-                    sum = sum + acc(i)
-                    acc(i) := 0.U
-                    a(i) := 0.U
-                    b(i) := 0.U
+                    for (j <- 0 until K) {
+                        sum = sum + acc(i)(j)
+                        acc(i)(j) := 0.U
+                        a(i)(j) := 0.U
+                        b(i)(j) := 0.U
+                    }
                 }
                 acc_buffer := sum
 
@@ -157,61 +157,61 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
 
 
 
-test(new ConvolutionFSM(N = 8, K = 5)) { c =>
+test(new ConvolutionFSM(N = 9, K = 3)) { c =>
     c.clock.setTimeout(10000)
 
-    //val input = Seq(
-    //    Seq(1, 2, 3, 4, 5, 6, 7, 8, 9),
-    //    Seq(1, 2, 3, 4, 5, 6, 7, 8, 9),
-    //    Seq(1, 2, 3, 4, 5, 6, 7, 8, 9),
-    //    Seq(1, 2, 3, 4, 5, 6, 7, 8, 9),
-    //    Seq(1, 2, 3, 4, 5, 6, 7, 8, 9),
-    //    Seq(1, 2, 3, 4, 5, 6, 7, 8, 9),
-    //    Seq(1, 2, 3, 4, 5, 6, 7, 8, 9),
-    //    Seq(1, 2, 3, 4, 5, 6, 7, 8, 9),
-    //    Seq(1, 2, 3, 4, 5, 6, 7, 8, 9)
-    //)
-
     val input = Seq(
-        Seq(1, 2, 3, 4, 5, 6, 7, 8),
-        Seq(1, 2, 3, 4, 5, 6, 7, 8),
-        Seq(1, 2, 3, 4, 5, 6, 7, 8),
-        Seq(1, 2, 3, 4, 5, 6, 7, 8),
-        Seq(1, 2, 3, 4, 5, 6, 7, 8),
-        Seq(1, 2, 3, 4, 5, 6, 7, 8),
-        Seq(1, 2, 3, 4, 5, 6, 7, 8),
-        Seq(1, 2, 3, 4, 5, 6, 7, 8)
+        Seq(1, 2, 3, 4, 5, 6, 7, 8, 9),
+        Seq(1, 2, 3, 4, 5, 6, 7, 8, 9),
+        Seq(1, 2, 3, 4, 5, 6, 7, 8, 9),
+        Seq(1, 2, 3, 4, 5, 6, 7, 8, 9),
+        Seq(1, 2, 3, 4, 5, 6, 7, 8, 9),
+        Seq(1, 2, 3, 4, 5, 6, 7, 8, 9),
+        Seq(1, 2, 3, 4, 5, 6, 7, 8, 9),
+        Seq(1, 2, 3, 4, 5, 6, 7, 8, 9),
+        Seq(1, 2, 3, 4, 5, 6, 7, 8, 9)
     )
+
+    //val input = Seq(
+    //    Seq(1, 2, 3, 4, 5, 6, 7, 8),
+    //    Seq(1, 2, 3, 4, 5, 6, 7, 8),
+    //    Seq(1, 2, 3, 4, 5, 6, 7, 8),
+    //    Seq(1, 2, 3, 4, 5, 6, 7, 8),
+    //    Seq(1, 2, 3, 4, 5, 6, 7, 8),
+    //    Seq(1, 2, 3, 4, 5, 6, 7, 8),
+    //    Seq(1, 2, 3, 4, 5, 6, 7, 8),
+    //    Seq(1, 2, 3, 4, 5, 6, 7, 8)
+    //)
 
     //val input = Seq(
     //    Seq(1,2,3),
     //    Seq(4,5,6),
     //    Seq(7,8,9)
     //)
+
+    val kernel = Seq(
+        Seq(1,2,3),
+        Seq(4,5,6),
+        Seq(7,8,9)
+    )
 
     //val kernel = Seq(
-    //    Seq(1,2,3),
-    //    Seq(4,5,6),
-    //    Seq(7,8,9)
+    //    Seq(1, 2, 3, 4, 5),
+    //    Seq(6, 7, 8, 9, 10),
+    //    Seq(11, 12, 13, 14, 15),
+    //    Seq(16, 17, 18, 19, 20),
+    //    Seq(21, 22, 23, 24, 25)
     //)
-//
-    val kernel = Seq(
-        Seq(1, 2, 3, 4, 5),
-        Seq(6, 7, 8, 9, 10),
-        Seq(11, 12, 13, 14, 15),
-        Seq(16, 17, 18, 19, 20),
-        Seq(21, 22, 23, 24, 25)
-    )
 
     // Poke inputs
-    for (i <- 0 until 8) {
-        for (j <- 0 until 8) {
+    for (i <- 0 until 9) {
+        for (j <- 0 until 9) {
             c.io.input(i)(j).poke(input(i)(j).U)
         }
     }
 
-    for (i <- 0 until 5) {
-        for (j <- 0 until 5) {
+    for (i <- 0 until 3) {
+        for (j <- 0 until 3) {
             c.io.kernel(i)(j).poke((kernel(i)(j)).U)
         }
     }
@@ -225,8 +225,8 @@ test(new ConvolutionFSM(N = 8, K = 5)) { c =>
     }
 
     println("\nConvolution Output:")
-    for (i <- 0 until 8) {
-        for (j <- 0 until 8) {
+    for (i <- 0 until 9) {
+        for (j <- 0 until 9) {
             print(f"${c.io.output(i)(j).peek().litValue}%5d")
         }
         println()
