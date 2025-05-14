@@ -61,7 +61,7 @@
         <mxCell id="9_EJvV3WEVmUTqAfREFr-6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="9_EJvV3WEVmUTqAfREFr-3" target="9_EJvV3WEVmUTqAfREFr-4">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="9_EJvV3WEVmUTqAfREFr-3" value="loadKernel&lt;div&gt;- padSize&lt;/div&gt;&lt;div&gt;- numTiles&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+        <mxCell id="9_EJvV3WEVmUTqAfREFr-3" value="loadKernel&lt;div&gt;- padSize&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
           <mxGeometry x="75" y="610" width="120" height="60" as="geometry" />
         </mxCell>
         <mxCell id="9_EJvV3WEVmUTqAfREFr-8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="9_EJvV3WEVmUTqAfREFr-4" target="9_EJvV3WEVmUTqAfREFr-7">
@@ -113,12 +113,12 @@
         <mxCell id="9_EJvV3WEVmUTqAfREFr-16" value="" style="endArrow=oval;html=1;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;endFill=1;" edge="1" parent="1" source="9_EJvV3WEVmUTqAfREFr-13">
           <mxGeometry width="50" height="50" relative="1" as="geometry">
             <mxPoint x="400" y="790" as="sourcePoint" />
-            <mxPoint x="750" y="780" as="targetPoint" />
+            <mxPoint x="820" y="780" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="9_EJvV3WEVmUTqAfREFr-17" value="&lt;span style=&quot;background-color: rgb(169, 196, 235);&quot;&gt;savedAllOutputTiles&lt;/span&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="9_EJvV3WEVmUTqAfREFr-16">
+        <mxCell id="9_EJvV3WEVmUTqAfREFr-17" value="&lt;span style=&quot;background-color: rgb(169, 196, 235);&quot;&gt;outputTileCount == numTiles&lt;/span&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="9_EJvV3WEVmUTqAfREFr-16">
           <mxGeometry x="-0.104" y="-1" relative="1" as="geometry">
-            <mxPoint as="offset" />
+            <mxPoint x="8" y="-1" as="offset" />
           </mxGeometry>
         </mxCell>
       </root>
