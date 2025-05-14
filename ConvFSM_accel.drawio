@@ -58,22 +58,19 @@
         <mxCell id="9_EJvV3WEVmUTqAfREFr-2" value="&lt;h1 style=&quot;margin-top: 0px;&quot;&gt;sCompute&lt;/h1&gt;" style="text;html=1;whiteSpace=wrap;overflow=hidden;rounded=0;align=center;" vertex="1" parent="1">
           <mxGeometry x="325" y="510" width="180" height="120" as="geometry" />
         </mxCell>
-        <mxCell id="9_EJvV3WEVmUTqAfREFr-6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="9_EJvV3WEVmUTqAfREFr-3" target="9_EJvV3WEVmUTqAfREFr-4">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="9_EJvV3WEVmUTqAfREFr-3" value="loadKernel&lt;div&gt;- padSize&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="75" y="610" width="120" height="60" as="geometry" />
-        </mxCell>
         <mxCell id="9_EJvV3WEVmUTqAfREFr-8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="9_EJvV3WEVmUTqAfREFr-4" target="9_EJvV3WEVmUTqAfREFr-7">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="9_EJvV3WEVmUTqAfREFr-4" value="loadInputTile" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
           <mxGeometry x="285" y="610" width="120" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="9_EJvV3WEVmUTqAfREFr-5" value="&lt;span style=&quot;background-color: rgb(225, 213, 231);&quot;&gt;doCompute&amp;nbsp;&lt;/span&gt;&lt;div&gt;&amp;amp;&amp;amp;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;background-color: rgb(225, 213, 231);&quot;&gt;cmd.valid&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&amp;amp;&amp;amp;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;background-color: rgb(185, 224, 165);&quot;&gt;cmd.ready&lt;/span&gt;&lt;/div&gt;" style="html=1;verticalAlign=bottom;startArrow=oval;startFill=1;endArrow=block;startSize=8;curved=0;rounded=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1">
-          <mxGeometry x="0.4667" width="60" relative="1" as="geometry">
-            <mxPoint x="135" y="490" as="sourcePoint" />
+        <mxCell id="9_EJvV3WEVmUTqAfREFr-5" value="&lt;span style=&quot;background-color: rgb(225, 213, 231);&quot;&gt;doCompute&amp;nbsp;&lt;/span&gt;&lt;div&gt;&amp;amp;&amp;amp;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;background-color: rgb(225, 213, 231);&quot;&gt;cmd.valid&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&amp;amp;&amp;amp;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;background-color: rgb(185, 224, 165);&quot;&gt;cmd.ready&lt;/span&gt;&lt;/div&gt;" style="html=1;verticalAlign=bottom;startArrow=oval;startFill=1;endArrow=block;startSize=8;curved=0;rounded=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" target="9_EJvV3WEVmUTqAfREFr-4">
+          <mxGeometry x="-0.0968" width="60" relative="1" as="geometry">
+            <mxPoint x="130" y="640" as="sourcePoint" />
             <mxPoint x="134.5" y="610" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="130" y="640" />
+            </Array>
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
@@ -91,7 +88,7 @@
           <mxGeometry x="505" y="610" width="120" height="60" as="geometry" />
         </mxCell>
         <mxCell id="9_EJvV3WEVmUTqAfREFr-12" value="&lt;h1 style=&quot;margin-top: 0px;&quot;&gt;loadKernel&lt;/h1&gt;" style="text;html=1;whiteSpace=wrap;overflow=hidden;rounded=0;align=center;" vertex="1" parent="1">
-          <mxGeometry x="325" y="860" width="180" height="120" as="geometry" />
+          <mxGeometry x="325" y="860" width="180" height="40" as="geometry" />
         </mxCell>
         <mxCell id="9_EJvV3WEVmUTqAfREFr-13" value="writeOutputTile&lt;div&gt;outputTileCount ++&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
           <mxGeometry x="505" y="750" width="120" height="60" as="geometry" />
@@ -119,6 +116,62 @@
         <mxCell id="9_EJvV3WEVmUTqAfREFr-17" value="&lt;span style=&quot;background-color: rgb(169, 196, 235);&quot;&gt;outputTileCount == numTiles&lt;/span&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="9_EJvV3WEVmUTqAfREFr-16">
           <mxGeometry x="-0.104" y="-1" relative="1" as="geometry">
             <mxPoint x="8" y="-1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="9_EJvV3WEVmUTqAfREFr-26" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="9_EJvV3WEVmUTqAfREFr-19" target="9_EJvV3WEVmUTqAfREFr-22">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="9_EJvV3WEVmUTqAfREFr-19" value="sIdle" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="920" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="9_EJvV3WEVmUTqAfREFr-21" value="&lt;span style=&quot;background-color: rgb(225, 213, 231);&quot;&gt;doLoadKernel&amp;nbsp;&lt;/span&gt;&lt;div&gt;&amp;amp;&amp;amp;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;background-color: rgb(225, 213, 231);&quot;&gt;cmd.valid&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&amp;amp;&amp;amp;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;background-color: rgb(185, 224, 165);&quot;&gt;cmd.ready&lt;/span&gt;&lt;/div&gt;" style="html=1;verticalAlign=bottom;startArrow=oval;startFill=1;endArrow=block;startSize=8;curved=0;rounded=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" target="9_EJvV3WEVmUTqAfREFr-19">
+          <mxGeometry x="0.5714" width="60" relative="1" as="geometry">
+            <mxPoint x="140" y="810" as="sourcePoint" />
+            <mxPoint x="200" y="840" as="targetPoint" />
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="9_EJvV3WEVmUTqAfREFr-27" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="9_EJvV3WEVmUTqAfREFr-22" target="9_EJvV3WEVmUTqAfREFr-23">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="9_EJvV3WEVmUTqAfREFr-28" value="&lt;span style=&quot;background-color: rgb(248, 206, 204);&quot;&gt;io.mem.req.valid&lt;/span&gt;&lt;div&gt;&amp;amp;&amp;amp;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;background-color: rgb(255, 229, 153);&quot;&gt;io.mem.req.ready&lt;/span&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="9_EJvV3WEVmUTqAfREFr-27">
+          <mxGeometry x="-0.0444" y="-2" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="9_EJvV3WEVmUTqAfREFr-22" value="sLoad" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="240" y="920" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="9_EJvV3WEVmUTqAfREFr-25" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="9_EJvV3WEVmUTqAfREFr-23" target="9_EJvV3WEVmUTqAfREFr-24">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="9_EJvV3WEVmUTqAfREFr-32" value="&lt;span style=&quot;background-color: rgb(169, 196, 235);&quot;&gt;loadDone&lt;/span&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="9_EJvV3WEVmUTqAfREFr-25">
+          <mxGeometry x="-0.075" y="-2" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="9_EJvV3WEVmUTqAfREFr-23" value="sWaitMem" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="490" y="920" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="9_EJvV3WEVmUTqAfREFr-24" value="sDone" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="690" y="920" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="9_EJvV3WEVmUTqAfREFr-29" value="KEY&lt;div&gt;&lt;span style=&quot;background-color: rgb(225, 213, 231);&quot;&gt;- Core to Accelerator&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;background-color: rgb(185, 224, 165);&quot;&gt;- Accelerator to Core&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;background-color: rgb(169, 196, 235);&quot;&gt;- Accelerator Flags&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;background-color: rgb(248, 206, 204);&quot;&gt;- Accelerator to Mem&lt;/span&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;background-color: rgb(255, 229, 153);&quot;&gt;- Mem to Accelerator&lt;/span&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;labelBackgroundColor=default;" vertex="1" parent="1">
+          <mxGeometry x="640" y="400" width="150" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="9_EJvV3WEVmUTqAfREFr-30" value="" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="9_EJvV3WEVmUTqAfREFr-23" target="9_EJvV3WEVmUTqAfREFr-22">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="600" y="810" as="sourcePoint" />
+            <mxPoint x="550" y="1040" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="550" y="1040" />
+              <mxPoint x="300" y="1040" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="9_EJvV3WEVmUTqAfREFr-33" value="&lt;span style=&quot;background-color: rgb(169, 196, 235);&quot;&gt;!loadDone&lt;/span&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="9_EJvV3WEVmUTqAfREFr-30">
+          <mxGeometry x="0.0108" y="1" relative="1" as="geometry">
+            <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
       </root>
