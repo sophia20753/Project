@@ -63,6 +63,46 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
                     inRowEnd := (N+pad-2).U
                     inColStart := (pad-1).U
                     inColEnd := (N+pad-2).U
+                }.elsewhen (io.input_tile_type === topLeft) {
+                    inRowStart := 0.U
+                    inRowEnd := (N-1).U
+                    inColStart := 0.U
+                    inColEnd := (N-1).U
+                }.elsewhen (io.input_tile_type === top) {
+                    inRowStart := 0.U
+                    inRowEnd := (N-1).U
+                    inColStart := pad.U
+                    inColEnd := (N+pad-1).U
+                }.elsewhen (io.input_tile_type === topRight) {
+                    inRowStart := 0.U
+                    inRowEnd := (N-1).U
+                    inColStart := (2*pad).U
+                    inColEnd := (N+pad-2).U
+                }.elsewhen (io.input_tile_type === left) {
+                    inRowStart := pad.U
+                    inRowEnd := (N+pad-2).U
+                    inColStart := 0.U
+                    inColEnd := (N-1).U
+                }.elsewhen (io.input_tile_type === right) {
+                    inRowStart := pad.U
+                    inRowEnd := (N+pad-2).U
+                    inColStart := pad.U
+                    inColEnd := (N+pad-2).U
+                }.elsewhen (io.input_tile_type === bottomLeft) {
+                    inRowStart := (2*pad).U
+                    inRowEnd := (N+pad-2).U
+                    inColStart := 0.U
+                    inColEnd := (N-1).U
+                }.elsewhen (io.input_tile_type === bottom) {
+                    inRowStart := pad.U
+                    inRowEnd := (N+pad-2).U
+                    inColStart := pad.U
+                    inColEnd := (N+pad-2).U
+                }.elsewhen (io.input_tile_type === bottomRight) {
+                    inRowStart := pad.U
+                    inRowEnd := (N+pad-2).U
+                    inColStart := pad.U
+                    inColEnd := (N+pad-2).U
                 }
                 
                 for (i <- 0 until K) {
@@ -95,6 +135,10 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
                         x := (inRow +& j.U)(log2Ceil(N) + 1 - 1, 0)
                         y := (inCol +& i.U)(log2Ceil(N) + 1 - 1, 0)
                         valid := true.B
+                    }.elsewhen (io.input_tile_type === topLeft) {
+                        x := (inRow +& j.U - pad.U)(log2Ceil(N) + 1, 0)
+                        y := (inCol +& i.U - pad.U)(log2Ceil(N) + 1, 0)
+                        valid := x >= 0.U && x <= N.U && y >= 0.U && y <= N.U
                     }
 
                     when(valid) {
