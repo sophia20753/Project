@@ -11,7 +11,7 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
         val output = Output(Vec(N, Vec(N, UInt(64.W))))
     })
 
-    val sIdle :: sLoad :: sAcc1 :: sAcc2 :: writeResult :: sDone :: Nil = Enum(6)
+    val sIdle :: sSetup ::sLoad :: sAcc1 :: sAcc2 :: writeResult :: sDone :: Nil = Enum(7)
     val topLeft :: top :: topRight :: left :: center :: right :: bottomLeft :: bottom :: bottomRight :: full :: Nil = Enum(10)
     val state = RegInit(sIdle)
 
@@ -49,9 +49,8 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
 
     switch(state) {
         is(sIdle) {
+            
             when(io.enable) {
-                inRow := 0.U
-                inCol := 0.U
 
                 when (io.input_tile_type === full) {
                     inRowStart := 0.U
@@ -77,33 +76,34 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
                     inRowStart := 0.U
                     inRowEnd := (N-1).U
                     inColStart := (2*pad).U
-                    inColEnd := (N+pad-2).U
+                    inColEnd := (N+2*pad-1).U
                 }.elsewhen (io.input_tile_type === left) {
                     inRowStart := pad.U
-                    inRowEnd := (N+pad-2).U
+                    inRowEnd := (N+pad-1).U
                     inColStart := 0.U
                     inColEnd := (N-1).U
                 }.elsewhen (io.input_tile_type === right) {
                     inRowStart := pad.U
-                    inRowEnd := (N+pad-2).U
-                    inColStart := pad.U
-                    inColEnd := (N+pad-2).U
+                    inRowEnd := (N+pad-1).U
+                    inColStart := (2*pad).U
+                    inColEnd := (N+2*pad-1).U
                 }.elsewhen (io.input_tile_type === bottomLeft) {
                     inRowStart := (2*pad).U
-                    inRowEnd := (N+pad-2).U
+                    inRowEnd := (N+2*pad-1).U
                     inColStart := 0.U
                     inColEnd := (N-1).U
                 }.elsewhen (io.input_tile_type === bottom) {
-                    inRowStart := pad.U
-                    inRowEnd := (N+pad-2).U
+                    inRowStart := (2*pad).U
+                    inRowEnd := (N+2*pad-1).U
                     inColStart := pad.U
-                    inColEnd := (N+pad-2).U
+                    inColEnd := (N+pad-1).U
                 }.elsewhen (io.input_tile_type === bottomRight) {
-                    inRowStart := pad.U
-                    inRowEnd := (N+pad-2).U
-                    inColStart := pad.U
-                    inColEnd := (N+pad-2).U
+                    inRowStart := (2*pad).U
+                    inRowEnd := (N+2*pad-1).U
+                    inColStart := (2*pad).U
+                    inColEnd := (N+2*pad-1).U
                 }
+
                 
                 for (i <- 0 until K) {
                     for (j <- 0 until K) {
@@ -114,8 +114,16 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
                 }
                 outIdx := 0.U
                 finishedAll := false.B
-                state := sLoad
+                state := sSetup
             }
+        }
+
+        is (sSetup) {
+
+            inRow := inRowStart
+            inCol := inColStart
+
+            state := sLoad
         }
 
         is(sLoad) {
@@ -138,7 +146,35 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
                     }.elsewhen (io.input_tile_type === topLeft) {
                         x := (inRow +& j.U - pad.U)(log2Ceil(N) + 1, 0)
                         y := (inCol +& i.U - pad.U)(log2Ceil(N) + 1, 0)
+                        valid := x >= 0.U && x <= N.U && y >= 0.U && y < (N+pad).U
+                    }.elsewhen (io.input_tile_type === top) {
+                        x := (inRow +& j.U - pad.U)(log2Ceil(N) + 1, 0)
+                        y := (inCol +& i.U - pad.U)(log2Ceil(N) + 1, 0)
                         valid := x >= 0.U && x <= N.U && y >= 0.U && y <= N.U
+                    }.elsewhen (io.input_tile_type === topRight) {
+                        x := (inRow +& j.U - pad.U)(log2Ceil(N) + 1, 0)
+                        y := (inCol +& i.U - pad.U)(log2Ceil(N) + 1, 0)
+                        valid := x >= 0.U && x <= (N+2*pad-1).U && y >= 0.U && y <= (N+2*pad-1).U
+                    }.elsewhen (io.input_tile_type === left) {
+                        x := (inRow +& j.U - pad.U)(log2Ceil(N) + 1, 0)
+                        y := (inCol +& i.U - pad.U)(log2Ceil(N) + 1, 0)
+                        valid := x >= 0.U && x <= (N+pad).U && y >= 0.U && y < (N+pad).U
+                    }.elsewhen (io.input_tile_type === right) {
+                        x := (inRow +& j.U - pad.U)(log2Ceil(N) + 1, 0)
+                        y := (inCol +& i.U - pad.U)(log2Ceil(N) + 1, 0)
+                        valid := x >= 0.U && x <= (N+pad).U && y >= 0.U && y <= (N+2*pad-1).U
+                    }.elsewhen (io.input_tile_type === bottomLeft) {
+                        x := (inRow +& j.U - pad.U)(log2Ceil(N) + 1, 0)
+                        y := (inCol +& i.U - pad.U)(log2Ceil(N) + 1, 0)
+                        valid := x >= 0.U && x <= (N+2*pad-1).U && y >= 0.U && y < (N+pad).U
+                    }.elsewhen (io.input_tile_type === bottom) {
+                        x := (inRow +& j.U - pad.U)(log2Ceil(N) + 1, 0)
+                        y := (inCol +& i.U - pad.U)(log2Ceil(N) + 1, 0)
+                        valid := x >= 0.U && x <= (N+2*pad-1).U && y >= 0.U && y <= (N+pad).U
+                    }.elsewhen (io.input_tile_type === bottomRight) {
+                        x := (inRow +& j.U - pad.U)(log2Ceil(N) + 1, 0)
+                        y := (inCol +& i.U - pad.U)(log2Ceil(N) + 1, 0)
+                        valid := x >= 0.U && x <= (N+2*pad-1).U && y >= 0.U && y <= (N+2*pad-1).U 
                     }
 
                     when(valid) {
@@ -227,7 +263,7 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
 
 
 
-test(new ConvolutionFSM(N = 9, K = 3)) { c =>
+test(new ConvolutionFSM(N = 3, K = 3)) { c =>
     c.clock.setTimeout(10000)
 
     //val input = Seq(
@@ -242,19 +278,19 @@ test(new ConvolutionFSM(N = 9, K = 3)) { c =>
     //    Seq(1, 2, 3, 4, 5, 6, 7, 8, 9)
     //)
 
-    val input = Seq(
-        Seq(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
-        Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0),
-        Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0),
-        Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0),
-        Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0),
-        Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0),
-        Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0),
-        Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0),
-        Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0),
-        Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0),
-        Seq(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-    )
+    //val input = Seq(
+    //    Seq(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+    //    Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0),
+    //    Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0),
+    //    Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0),
+    //    Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0),
+    //    Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0),
+    //    Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0),
+    //    Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0),
+    //    Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0),
+    //    Seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0),
+    //    Seq(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    //)
 
     //val input = Seq(
     //    Seq(1, 2, 3, 4, 5, 6, 7, 8),
@@ -267,13 +303,13 @@ test(new ConvolutionFSM(N = 9, K = 3)) { c =>
     //    Seq(1, 2, 3, 4, 5, 6, 7, 8)
     //)
 
-    //val input = Seq(
-    //    Seq(0,0,0,0,0),
-    //    Seq(0,1,2,3,0),
-    //    Seq(0,4,5,6,0),
-    //    Seq(0,7,8,9,0),
-    //    Seq(0,0,0,0,0)
-    //)
+    val input = Seq(
+        Seq(0,0,0,0,0),
+        Seq(0,0,0,0,0),
+        Seq(0,1,2,3,0),
+        Seq(0,4,5,6,0),
+        Seq(0,7,8,9,0)
+    )
 
     val kernel = Seq(
         Seq(1,2,3),
@@ -290,9 +326,9 @@ test(new ConvolutionFSM(N = 9, K = 3)) { c =>
     //)
 
     // Poke inputs
-    c.io.input_tile_type.poke(4.U)
-    for (i <- 0 until 11) {
-        for (j <- 0 until 11) {
+    c.io.input_tile_type.poke(7.U)
+    for (i <- 0 until 5) {
+        for (j <- 0 until 5) {
             c.io.input(i)(j).poke(input(i)(j).U)
         }
     }
@@ -312,8 +348,8 @@ test(new ConvolutionFSM(N = 9, K = 3)) { c =>
     }
 
     println("\nConvolution Output:")
-    for (i <- 0 until 9) {
-        for (j <- 0 until 9) {
+    for (i <- 0 until 3) {
+        for (j <- 0 until 3) {
             print(f"${c.io.output(i)(j).peek().litValue}%5d")
         }
         println()
