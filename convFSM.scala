@@ -151,7 +151,7 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
                     }.elsewhen (io.input_tile_type === topLeft) {
                         valid := x >= 0.U && x < (N+pad).U && y >= 0.U && y < (N+pad).U
                     }.elsewhen (io.input_tile_type === top) {
-                        valid := x >= 0.U && x <= N.U && y >= 0.U && y <= N.U
+                        valid := x >= 0.U && x < (N+pad).U && y >= 0.U && y <= (N+2*pad-1).U
                     }.elsewhen (io.input_tile_type === topRight) {
                         valid := x >= 0.U && x <= (N+2*pad-1).U && y >= 0.U && y <= (N+2*pad-1).U
                     }.elsewhen (io.input_tile_type === left) {
@@ -271,7 +271,7 @@ test(new ConvolutionFSM(N = 8, K = 1)) { c =>
     )
 
     // Poke inputs
-    c.io.input_tile_type.poke(4.U)
+    c.io.input_tile_type.poke(2.U)
     for (i <- 0 until 8) {
         for (j <- 0 until 8) {
             c.io.input(i)(j).poke(input(i)(j).U)
@@ -305,9 +305,9 @@ test(new ConvolutionFSM(N = 3, K = 3)) { c =>
     c.clock.setTimeout(10000)
 
     val input = Seq(
-        Seq(1,2,3,0,0),
-        Seq(4,5,6,0,0),
-        Seq(7,8,9,0,0),
+        Seq(0,0,1,2,3),
+        Seq(0,0,4,5,6),
+        Seq(0,0,7,8,9),
         Seq(0,0,0,0,0),
         Seq(0,0,0,0,0)
     )
@@ -320,7 +320,7 @@ test(new ConvolutionFSM(N = 3, K = 3)) { c =>
     )
 
     // Poke inputs
-    c.io.input_tile_type.poke(0.U)
+    c.io.input_tile_type.poke(2.U)
     for (i <- 0 until 5) {
         for (j <- 0 until 5) {
             c.io.input(i)(j).poke(input(i)(j).U)
@@ -355,14 +355,14 @@ test(new ConvolutionFSM(N = 8, K = 3)) { c =>
     c.clock.setTimeout(10000)
 
     val input = Seq(
-        Seq(1,2,3,4,5,6,7,8,1,1),
-        Seq(1,2,3,4,5,6,7,8,1,1),
-        Seq(1,2,3,4,5,6,7,8,1,1),
-        Seq(1,2,3,4,5,6,7,8,1,1),
-        Seq(1,2,3,4,5,6,7,8,1,1),
-        Seq(1,2,3,4,5,6,7,8,1,1),
-        Seq(1,2,3,4,5,6,7,8,1,1),
-        Seq(1,2,3,4,5,6,7,8,1,1),
+        Seq(1,1,1,2,3,4,5,6,7,8),
+        Seq(1,1,1,2,3,4,5,6,7,8),
+        Seq(1,1,1,2,3,4,5,6,7,8),
+        Seq(1,1,1,2,3,4,5,6,7,8),
+        Seq(1,1,1,2,3,4,5,6,7,8),
+        Seq(1,1,1,2,3,4,5,6,7,8),
+        Seq(1,1,1,2,3,4,5,6,7,8),
+        Seq(1,1,1,2,3,4,5,6,7,8),
         Seq(1,1,1,1,1,1,1,1,1,1),
         Seq(1,1,1,1,1,1,1,1,1,1)
     )
@@ -375,7 +375,7 @@ test(new ConvolutionFSM(N = 8, K = 3)) { c =>
     )
 
     // Poke inputs
-    c.io.input_tile_type.poke(0.U)
+    c.io.input_tile_type.poke(2.U)
     for (i <- 0 until 10) {
         for (j <- 0 until 10) {
             c.io.input(i)(j).poke(input(i)(j).U)
@@ -410,15 +410,15 @@ test(new ConvolutionFSM(N = 5, K = 5)) { c =>
     c.clock.setTimeout(10000)
 
     val input = Seq(
-        Seq(1,2,3,4,5,0,0,0,0),
-        Seq(1,2,3,4,5,0,0,0,0),
-        Seq(1,2,3,4,5,0,0,0,0),
-        Seq(1,2,3,4,5,0,0,0,0),
-        Seq(1,2,3,4,5,0,0,0,0),
-        Seq(0,0,0,0,0,0,0,0,0),
-        Seq(0,0,0,0,0,0,0,0,0),
-        Seq(0,0,0,0,0,0,0,0,0),
-        Seq(0,0,0,0,0,0,0,0,0)
+        Seq(1,1,0,0,1,2,3,4,5),
+        Seq(1,1,0,0,1,2,3,4,5),
+        Seq(1,1,0,0,1,2,3,4,5),
+        Seq(1,1,0,0,1,2,3,4,5),
+        Seq(1,1,0,0,1,2,3,4,5),
+        Seq(1,1,0,0,0,0,0,0,0),
+        Seq(1,1,0,0,0,0,0,0,0),
+        Seq(1,1,1,1,1,1,1,1,1),
+        Seq(1,1,1,1,1,1,1,1,1)
     )
 
 
@@ -431,7 +431,7 @@ test(new ConvolutionFSM(N = 5, K = 5)) { c =>
     )
 
     // Poke inputs
-    c.io.input_tile_type.poke(0.U)
+    c.io.input_tile_type.poke(2.U)
     for (i <- 0 until 9) {
         for (j <- 0 until 9) {
             c.io.input(i)(j).poke(input(i)(j).U)
@@ -465,14 +465,14 @@ test(new ConvolutionFSM(N = 8, K = 5)) { c =>
     c.clock.setTimeout(10000)
 
     val input = Seq(
-        Seq(1,2,3,4,5,6,7,8,1,1,1,1),
-        Seq(1,2,3,4,5,6,7,8,1,1,1,1),
-        Seq(1,2,3,4,5,6,7,8,1,1,1,1),
-        Seq(1,2,3,4,5,6,7,8,1,1,1,1),
-        Seq(1,2,3,4,5,6,7,8,1,1,1,1),
-        Seq(1,2,3,4,5,6,7,8,1,1,1,1),
-        Seq(1,2,3,4,5,6,7,8,1,1,1,1),
-        Seq(1,2,3,4,5,6,7,8,1,1,1,1),
+        Seq(1,1,1,1,1,2,3,4,5,6,7,8),
+        Seq(1,1,1,1,1,2,3,4,5,6,7,8),
+        Seq(1,1,1,1,1,2,3,4,5,6,7,8),
+        Seq(1,1,1,1,1,2,3,4,5,6,7,8),
+        Seq(1,1,1,1,1,2,3,4,5,6,7,8),
+        Seq(1,1,1,1,1,2,3,4,5,6,7,8),
+        Seq(1,1,1,1,1,2,3,4,5,6,7,8),
+        Seq(1,1,1,1,1,2,3,4,5,6,7,8),
         Seq(1,1,1,1,1,1,1,1,1,1,1,1),
         Seq(1,1,1,1,1,1,1,1,1,1,1,1),
         Seq(1,1,1,1,1,1,1,1,1,1,1,1),
@@ -489,7 +489,7 @@ test(new ConvolutionFSM(N = 8, K = 5)) { c =>
     )
 
     // Poke inputs
-    c.io.input_tile_type.poke(0.U)
+    c.io.input_tile_type.poke(2.U)
     for (i <- 0 until 12) {
         for (j <- 0 until 12) {
             c.io.input(i)(j).poke(input(i)(j).U)
