@@ -31,6 +31,7 @@ class TileLoader(val N: Int, val K: Int) extends Module {
     val col = RegInit(0.U(log2Ceil(tileSize).W))
     val busy = RegInit(false.B)
     val done = RegInit(false.B)
+    val waitingForResp = RegInit(false.B) // flag to track if memory request issued and still waiting for response
 
     io.tile := tile
     io.done := done 
@@ -39,14 +40,6 @@ class TileLoader(val N: Int, val K: Int) extends Module {
     val addrOffset = (row * tileSize.U + col) * 4.U // 4 bytes per element?
     val currentAddr = io.baseAddr + addrOffset
 
-    // Start logic
-    when(io.start && !busy) {
-        busy := true.B 
-        row := 0.U 
-        col := 0.U 
-        done := false.B 
-    }
-
     // Default memory request
     io.mem.req.valid := false.B 
     io.mem.req.bits.addr := currentAddr 
@@ -54,15 +47,28 @@ class TileLoader(val N: Int, val K: Int) extends Module {
     io.mem.req.bits.size := 2.U // 4 bytes
     io.mem.req.bits.data := 0.U 
 
-    // Issue a request if busy
-    when(busy && !done) {
-        io.mem.req.valid := true.B 
+    io.mem.resp.ready := true.B 
 
-        // Accept data from memory
-        when(io.mem.resp.valid) {
-            tile(row)(col) := io.mem.resp.bits.data 
+    // Start logic
+    when(io.start && !busy) {
+        busy := true.B 
+        row := 0.U 
+        col := 0.U 
+        done := false.B 
+        waitingForResp := false.B 
+    }
 
-            // Advance to next position
+    when(busy && !done) {       
+        when(!waitingForResp) {
+            io.mem.req.valid := true.B 
+            when(io.mem.req.fire) {
+                waitingForResp := true.B // requested memory
+            }
+        }.elsewhen(io.mem.resp.fire) {
+            // Got a response, write element
+            tile(row)(col) := io.mem.resp.bits.data
+            waitingForResp := false.B // got data, new request next cycle
+            // Advance to next element
             when(col === (tileSize - 1).U) {
                 col := 0.U 
                 when(row === (tileSize - 1).U) {

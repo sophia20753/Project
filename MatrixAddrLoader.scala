@@ -29,7 +29,7 @@ class MatrixAddrLoader extends Module {
     val isOutput = RegInit(false.B)
     val loadInputAddr = RegInit(0.U(32.W))
     val loadOutputAddr = RegInit(0.U(32.W))
-    val startLoad = RegInit(false.B)
+    val startLoad = RegInit(false.B) // debugging flag
     val matrixLoadsDone = RegInit(false.B)
     val bufAddr = RegInit(0.U(32.W))
 
@@ -45,13 +45,13 @@ class MatrixAddrLoader extends Module {
 
     // Outputs
     io.cmd.ready := ((state === sIdle) || 
-                     (state === sDone && !(inputLoaded && outputLoaded)) && io.cmd.valid)
+                     (state === sDone && !(inputLoaded && outputLoaded)))
 
     io.busy := false.B // using cmd.ready gating to control two-instruction FSM. 
 
     switch(state) {
         is(sIdle) {
-            when(io.cmd.valid) {             
+            when(io.cmd.fire) {             
                 state := sDecode
             }
         }
@@ -88,7 +88,7 @@ class MatrixAddrLoader extends Module {
         }
 
         is(sDone) {
-            when(!(inputLoaded && outputLoaded) && io.cmd.valid) {
+            when(!(inputLoaded && outputLoaded) && io.cmd.fire) {
                 state := sDecode
                 startLoad := false.B 
             }.elsewhen(inputLoaded && outputLoaded) {
