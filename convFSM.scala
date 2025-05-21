@@ -1,14 +1,16 @@
 class ConvolutionFSM(val N: Int, val K: Int) extends Module {
+    import chisel3.experimental.FixedPoint
+
     val pad = (K - 1) / 2
 
     val io = IO(new Bundle {
         val enable = Input(Bool())
         val done = Output(Bool())
 
-        val kernel = Input(Vec(K, Vec(K, UInt(32.W))))
-        val input = Input(Vec(N+K-1, Vec(N+K-1, UInt(32.W))))
+        val kernel = Input(Vec(K, Vec(K, FixedPoint(16.W, 8.BP))))
+        val input = Input(Vec(N+K-1, Vec(N+K-1, FixedPoint(16.W, 8.BP))))
         val input_tile_type = Input(UInt(10.W))
-        val output = Output(Vec(N, Vec(N, UInt(64.W))))
+        val output = Output(Vec(N, Vec(N, FixedPoint(32.W, 8.BP))))
     })
 
     val sIdle :: sSetup ::sLoad :: sAcc1 :: sAcc2 :: writeResult :: sDone :: Nil = Enum(7)
@@ -31,12 +33,12 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
     val outCol = outIdx % N.U
 
     val count = RegInit(0.U(32.W))
-    val acc_buffer = RegInit(0.U(64.W))
-    val acc = RegInit(VecInit(Seq.fill(K)(VecInit(Seq.fill(K)(0.U(64.W))))))
-    val result = RegInit(VecInit(Seq.fill(N)(VecInit(Seq.fill(N)(0.U(64.W))))))
+    val acc_buffer = RegInit(0.F(32.W, 8.BP))
+    val acc = RegInit(VecInit(Seq.fill(K)(VecInit(Seq.fill(K)(0.F(32.W, 8.BP))))))
+    val result = RegInit(VecInit(Seq.fill(N)(VecInit(Seq.fill(N)(0.F(32.W, 8.BP))))))
 
-    val a = RegInit(VecInit(Seq.fill(K)(VecInit(Seq.fill(K)(0.U(32.W))))))
-    val b = RegInit(VecInit(Seq.fill(K)(VecInit(Seq.fill(K)(0.U(32.W))))))
+    val a = RegInit(VecInit(Seq.fill(K)(VecInit(Seq.fill(K)(0.F(16.W, 8.BP))))))
+    val b = RegInit(VecInit(Seq.fill(K)(VecInit(Seq.fill(K)(0.F(16.W, 8.BP))))))
 
     io.output := result
     io.done := false.B
@@ -107,9 +109,9 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
                 
                 for (i <- 0 until K) {
                     for (j <- 0 until K) {
-                        acc(i)(j) := 0.U
-                        a(i)(j) := 0.U
-                        b(i)(j) := 0.U
+                        acc(i)(j) := 0.F(32.W, 8.BP)
+                        a(i)(j) := 0.F(16.W, 8.BP)
+                        b(i)(j) := 0.F(16.W, 8.BP)
                     }
                 }
                 outIdx := 0.U
@@ -170,8 +172,8 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
                         a(i)(j) := io.kernel(j.U)(i.U)
                         b(i)(j) := io.input(x)(y)
                     }.otherwise {
-                        a(i)(j) := 0.U
-                        b(i)(j) := 0.U
+                        a(i)(j) := 0.F(16.W, 8.BP)
+                        b(i)(j) := 0.F(16.W, 8.BP)
                     }
                     
                     //printf(p"Cycle: $count, kerCol = ${i.U}, kerRow = ${j.U}, inCol = $inCol, inRow = $inRow, outIdx: $outIdx, x = $x, y = $y, valid = $valid\n")
@@ -195,13 +197,13 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
 
         is(sAcc2) {
 
-            var sum = 0.U
+            var sum = 0.F(32.W, 8.BP)
             for (i <- 0 until K) {
                 for (j <- 0 until K) {
                     sum = sum + acc(i)(j)
-                    acc(i)(j) := 0.U
-                    a(i)(j) := 0.U
-                    b(i)(j) := 0.U
+                    acc(i)(j) := 0.F(32.W, 8.BP)
+                    a(i)(j) := 0.F(16.W, 8.BP)
+                    b(i)(j) := 0.F(16.W, 8.BP)
                 }
             }
             acc_buffer := sum
@@ -227,7 +229,7 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
         is(writeResult) {
 
             result(outRow)(outCol) := acc_buffer
-            acc_buffer := 0.U
+            acc_buffer := 0.F(32.W, 8.BP)
             outIdx := outIdx + 1.U
             when(finishedAll) {
                 state := sDone
@@ -254,33 +256,35 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
 test(new ConvolutionFSM(N = 8, K = 1)) { c =>
     c.clock.setTimeout(10000)
 
+    import chisel3.experimental.FixedPoint
+
     val input = Seq(
-        Seq(1,2,3,4,5,6,7,8),
-        Seq(9,10,11,12,13,14,15,16),
-        Seq(17,18,19,20,21,22,23,24),
-        Seq(25,26,27,28,29,30,31,32),
-        Seq(33,34,35,36,37,38,39,40),
-        Seq(41,42,43,44,45,46,47,48),
-        Seq(49,50,51,52,53,54,55,56),
-        Seq(57,58,59,60,61,62,63,64),
+        Seq(1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0),
+        Seq(9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0),
+        Seq(17.0,18.0,19.0,20.0,21.0,22.0,23.0,24.0),
+        Seq(25.0,26.0,27.0,28.0,29.0,30.0,31.0,32.0),
+        Seq(33.0,34.0,35.0,36.0,37.0,38.0,39.0,40.0),
+        Seq(41.0,42.0,43.0,44.0,45.0,46.0,47.0,48.0),
+        Seq(49.0,50.0,51.0,52.0,53.0,54.0,55.0,56.0),
+        Seq(57.0,58.0,59.0,60.0,61.0,62.0,63.0,64.0),
     )
 
 
     val kernel = Seq(
-        Seq(1)
+        Seq(-1.0)
     )
 
     // Poke inputs
     c.io.input_tile_type.poke(8.U)
     for (i <- 0 until 8) {
         for (j <- 0 until 8) {
-            c.io.input(i)(j).poke(input(i)(j).U)
+            c.io.input(i)(j).poke(input(i)(j).F(16.W, 8.BP))
         }
     }
 
     for (i <- 0 until 1) {
         for (j <- 0 until 1) {
-            c.io.kernel(i)(j).poke((kernel(i)(j)).U)
+            c.io.kernel(i)(j).poke((kernel(i)(j)).F(16.W, 8.BP))
         }
     }
 
@@ -295,7 +299,8 @@ test(new ConvolutionFSM(N = 8, K = 1)) { c =>
     println("\nConvolution Output:")
     for (i <- 0 until 8) {
         for (j <- 0 until 8) {
-            print(f"${c.io.output(i)(j).peek().litValue}%5d")
+            val fixedValue = c.io.output(i)(j).peek().litValue.toDouble / (1 << 8)
+            print(f"$fixedValue%5.2f ")
         }
         println()
     }
@@ -303,6 +308,8 @@ test(new ConvolutionFSM(N = 8, K = 1)) { c =>
 
 test(new ConvolutionFSM(N = 3, K = 3)) { c =>
     c.clock.setTimeout(10000)
+
+    import chisel3.experimental.FixedPoint
 
     val input = Seq(
         Seq(0,0,0,0,0),
@@ -314,22 +321,22 @@ test(new ConvolutionFSM(N = 3, K = 3)) { c =>
 
 
     val kernel = Seq(
-        Seq(1,2,3),
-        Seq(4,5,6),
-        Seq(7,8,9)
+        Seq(-1,-2,-3),
+        Seq(-4,-5,-6),
+        Seq(-7,-8,-9)
     )
 
     // Poke inputs
     c.io.input_tile_type.poke(8.U)
     for (i <- 0 until 5) {
         for (j <- 0 until 5) {
-            c.io.input(i)(j).poke(input(i)(j).U)
+            c.io.input(i)(j).poke(input(i)(j).F(16.W, 8.BP))
         }
     }
 
     for (i <- 0 until 3) {
         for (j <- 0 until 3) {
-            c.io.kernel(i)(j).poke((kernel(i)(j)).U)
+            c.io.kernel(i)(j).poke((kernel(i)(j)).F(16.W, 8.BP))
         }
     }
 
@@ -344,7 +351,8 @@ test(new ConvolutionFSM(N = 3, K = 3)) { c =>
     println("\nConvolution Output:")
     for (i <- 0 until 3) {
         for (j <- 0 until 3) {
-            print(f"${c.io.output(i)(j).peek().litValue}%5d")
+            val fixedValue = c.io.output(i)(j).peek().litValue.toDouble / (1 << 8)
+            print(f"$fixedValue%5.2f ")
         }
         println()
     }
@@ -354,17 +362,19 @@ test(new ConvolutionFSM(N = 3, K = 3)) { c =>
 test(new ConvolutionFSM(N = 8, K = 3)) { c =>
     c.clock.setTimeout(10000)
 
+    import chisel3.experimental.FixedPoint
+
     val input = Seq(
         Seq(0,0,0,0,0,0,0,0,0,0),
         Seq(0,0,0,0,0,0,0,0,0,0),
-        Seq(0,0,1,2,3,4,5,6,7,8),
-        Seq(0,0,1,2,3,4,5,6,7,8),
-        Seq(0,0,1,2,3,4,5,6,7,8),
-        Seq(0,0,1,2,3,4,5,6,7,8),
-        Seq(0,0,1,2,3,4,5,6,7,8),
-        Seq(0,0,1,2,3,4,5,6,7,8),
-        Seq(0,0,1,2,3,4,5,6,7,8),
-        Seq(0,0,1,2,3,4,5,6,7,8)
+        Seq(0,0,-1,-2,-3,-4,-5,-6,-7,-8),
+        Seq(0,0,-1,-2,-3,-4,-5,-6,-7,-8),
+        Seq(0,0,-1,-2,-3,-4,-5,-6,-7,-8),
+        Seq(0,0,-1,-2,-3,-4,-5,-6,-7,-8),
+        Seq(0,0,-1,-2,-3,-4,-5,-6,-7,-8),
+        Seq(0,0,-1,-2,-3,-4,-5,-6,-7,-8),
+        Seq(0,0,-1,-2,-3,-4,-5,-6,-7,-8),
+        Seq(0,0,-1,-2,-3,-4,-5,-6,-7,-8)
     )
 
 
@@ -378,13 +388,13 @@ test(new ConvolutionFSM(N = 8, K = 3)) { c =>
     c.io.input_tile_type.poke(8.U)
     for (i <- 0 until 10) {
         for (j <- 0 until 10) {
-            c.io.input(i)(j).poke(input(i)(j).U)
+            c.io.input(i)(j).poke(input(i)(j).F(16.W, 8.BP))
         }
     }
 
     for (i <- 0 until 3) {
         for (j <- 0 until 3) {
-            c.io.kernel(i)(j).poke((kernel(i)(j)).U)
+            c.io.kernel(i)(j).poke((kernel(i)(j)).F(16.W, 8.BP))
         }
     }
 
@@ -399,7 +409,8 @@ test(new ConvolutionFSM(N = 8, K = 3)) { c =>
     println("\nConvolution Output:")
     for (i <- 0 until 8) {
         for (j <- 0 until 8) {
-            print(f"${c.io.output(i)(j).peek().litValue}%5d")
+            val fixedValue = c.io.output(i)(j).peek().litValue.toDouble / (1 << 8)
+            print(f"$fixedValue%5.2f ")
         }
         println()
     }
@@ -408,6 +419,8 @@ test(new ConvolutionFSM(N = 8, K = 3)) { c =>
 
 test(new ConvolutionFSM(N = 5, K = 5)) { c =>
     c.clock.setTimeout(10000)
+
+    import chisel3.experimental.FixedPoint
 
     val input = Seq(
         Seq(0,0,0,0,0,0,0,0,0),
@@ -434,13 +447,13 @@ test(new ConvolutionFSM(N = 5, K = 5)) { c =>
     c.io.input_tile_type.poke(8.U)
     for (i <- 0 until 9) {
         for (j <- 0 until 9) {
-            c.io.input(i)(j).poke(input(i)(j).U)
+            c.io.input(i)(j).poke(input(i)(j).F(16.W, 8.BP))
         }
     }
 
     for (i <- 0 until 5) {
         for (j <- 0 until 5) {
-            c.io.kernel(i)(j).poke((kernel(i)(j)).U)
+            c.io.kernel(i)(j).poke((kernel(i)(j)).F(16.W, 8.BP))
         }
     }
 
@@ -455,7 +468,8 @@ test(new ConvolutionFSM(N = 5, K = 5)) { c =>
     println("\nConvolution Output:")
     for (i <- 0 until 5) {
         for (j <- 0 until 5) {
-            print(f"${c.io.output(i)(j).peek().litValue}%5d")
+            val fixedValue = c.io.output(i)(j).peek().litValue.toDouble / (1 << 8)
+            print(f"$fixedValue%5.2f ")
         }
         println()
     }
@@ -463,6 +477,8 @@ test(new ConvolutionFSM(N = 5, K = 5)) { c =>
 
 test(new ConvolutionFSM(N = 8, K = 5)) { c =>
     c.clock.setTimeout(10000)
+
+    import chisel3.experimental.FixedPoint
 
     val input = Seq(
         Seq(0,0,0,0,0,0,0,0,0,0,0,0),
@@ -492,13 +508,13 @@ test(new ConvolutionFSM(N = 8, K = 5)) { c =>
     c.io.input_tile_type.poke(8.U)
     for (i <- 0 until 12) {
         for (j <- 0 until 12) {
-            c.io.input(i)(j).poke(input(i)(j).U)
+            c.io.input(i)(j).poke(input(i)(j).F(16.W, 8.BP))
         }
     }
 
     for (i <- 0 until 5) {
         for (j <- 0 until 5) {
-            c.io.kernel(i)(j).poke((kernel(i)(j)).U)
+            c.io.kernel(i)(j).poke((kernel(i)(j)).F(16.W, 8.BP))
         }
     }
 
@@ -513,7 +529,8 @@ test(new ConvolutionFSM(N = 8, K = 5)) { c =>
     println("\nConvolution Output:")
     for (i <- 0 until 8) {
         for (j <- 0 until 8) {
-            print(f"${c.io.output(i)(j).peek().litValue}%5d")
+            val fixedValue = c.io.output(i)(j).peek().litValue.toDouble / (1 << 8)
+            print(f"$fixedValue%5.2f ")
         }
         println()
     }
