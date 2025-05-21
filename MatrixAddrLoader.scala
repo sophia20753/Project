@@ -45,7 +45,9 @@ class MatrixAddrLoader extends Module {
 
     // Outputs
     io.cmd.ready := ((state === sIdle) || 
-                     (state === sDone && !(inputLoaded && outputLoaded)))
+                     (state === sDone && !(inputLoaded && outputLoaded)) && io.cmd.valid)
+
+    io.busy := false.B // using cmd.ready gating to control two-instruction FSM. 
 
     switch(state) {
         is(sIdle) {
