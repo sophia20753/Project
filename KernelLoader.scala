@@ -67,13 +67,13 @@ class KernelLoader extends Module {
 
         is(sLoad) {
             io.mem.req.valid := true.B 
-            when(io.mem.req.ready) {
+            when(io.mem.req.fire) {
                 state := sWaitMem 
             }
         }
         // TODO: DMA bulk memory transfer
         is(sWaitMem) {
-            when(io.mem.resp.valid) {
+            when(io.mem.resp.fire) {
                 kernel(kerRow)(kerCol) := io.mem.resp.bits 
 
                 when(kerCol === (kernelDim - 1.U)) {
