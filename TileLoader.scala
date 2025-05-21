@@ -15,8 +15,8 @@ class ROCCMemoryInterface extends Bundle {
     val resp = Flipped(Valid(new MemResp))
 }
 
-class TileLoader(val N: Int, val K: Int, val pad: Int) extends Module {
-    val tileSize = N + K - pad
+class TileLoader(val N: Int, val K: Int) extends Module {
+    val tileSize = N + K - 1
 
     val io = IO(new Bundle {
         val start = Input(Bool()) // Start signal
