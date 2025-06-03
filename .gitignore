@@ -2,3 +2,5 @@
 conv.dSYM/*
 ihatetiledconvolution.xlsx
 conv
+test/test_kernelLoader.dSYM/*
+test/test_kernelLoader
