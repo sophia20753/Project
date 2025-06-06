@@ -70,7 +70,7 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
             }
         }
 
-		io.mem.req.valid := (state === sLoad && io.mem.req.ready)
+		io.mem.req.valid := (state === sLoad)
 		//io.mem.resp.valid := (state === sResp)
 
 		when (io.mem.req.fire)	 {
