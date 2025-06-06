@@ -29,6 +29,7 @@ int main() {
 
     printf("Kernel address: 0x%lx\n", (uintptr_t)kernel);
     printf("Sending kernel pointer to accelerator...\n");
+    printf("size: %d",sizeof(kernel[0]));
     asm volatile("fence" ::: "memory");
     uint64_t result = load_kernel((uint64_t)&kernel[0], 2); // 2 = 5x5 kernel
     printf("Instruction sent!\n");

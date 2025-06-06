@@ -15,7 +15,7 @@ class OurCONV(opcodes: OpcodeSet)(implicit p: Parameters) extends LazyRoCC(opcod
 class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCModuleImp(outer)
 	with HasCoreParameters {
 		// FSM states
-		val sIdle :: sLoad :: sWaitMem :: sDone :: Nil = Enum(4)
+		val sIdle :: sLoad :: sResp :: sDone :: Nil = Enum(4)
 		val state = RegInit(sIdle)
 
 		// Internal registers
@@ -29,11 +29,11 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 		val kernel = Reg(Vec(5, Vec(5, UInt(32.W))))
 
         // cmd signals
-        val cmd = Queue(io.cmd, 2)
-        val funct = cmd.bits.inst.funct
+        //val cmd = Queue(io.cmd, 2)
+        val funct = io.cmd.bits.inst.funct
         val doLoadKernel = funct === 0.U 
 
-        cmd.ready := state === sIdle
+        io.cmd.ready := state === sIdle
 
 		io.resp.valid := (state === sDone)
 		io.resp.bits.rd := rd
@@ -52,70 +52,82 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 		val loadAddr = baseAddr + byteOffset
 
 		val loadDone = (kerRow === (kernelDim - 1.U)) && (kerCol === (kernelDim - 1.U)) // possible timing condition
+		
+		when (state === sIdle) {
+            when(io.cmd.valid) {
+                when(doLoadKernel) {
+                    // testbench: send done signal
+                    rd := io.cmd.bits.inst.rd 
+                    printf(p"doLoadKernel\n")
+                    kernelSize := io.cmd.bits.rs1
+                    baseAddr := io.cmd.bits.rs2
+                    printf(p"${io.cmd.bits.rs1}\n")
+                    printf(p"${io.cmd.bits.rs2}\n")
+                    kerRow := 0.U 
+                    kerCol := 0.U 
+                    state := sLoad
+                }
+            }
+        }
 
-		io.mem.req.valid := (state === sLoad)
-		when(state === sLoad) {
+		io.mem.req.valid := (state === sLoad && io.mem.req.ready)
+		//io.mem.resp.valid := (state === sResp)
+
+		when (io.mem.req.fire)	 {
+			printf(p"Memory request sent: addr = 0x${Hexadecimal(loadAddr)}\n")
+			printf(p"memvalid ${io.mem.resp.valid}\n")
+			printf(p"memvalid ${io.mem.req.valid}\n")
+			printf(p"addr ${io.mem.req.bits.addr}\n")
+			printf(p"cmd ${io.mem.req.bits.cmd}\n")
+			printf(p"tag ${io.mem.req.bits.tag}\n")
+			printf(p"size ${io.mem.req.bits.size}\n")
+			printf(p"signed ${io.mem.req.bits.signed}\n")
+			printf(p"phys ${io.mem.req.bits.phys}\n")
+			
+			state := sResp
+		}
+
+		when (io.mem.resp.fire) {
+			printf(p"Memory response received: addr = 0x${Hexadecimal(loadAddr)}\n")
+			kernel(kerRow)(kerCol) := io.mem.resp.bits.data
+
+			when(kerCol === (kernelDim - 1.U)) {
+				kerCol := 0.U 
+				kerRow := kerRow + 1.U 
+			}.otherwise {
+				kerCol := kerCol + 1.U 
+			}
+			state := Mux(loadDone, sDone, sLoad)
+		}
+
+		when (state === sLoad) {
 			io.mem.req.bits.addr := loadAddr
 			io.mem.req.bits.tag := 0.U 
-			io.mem.req.bits.cmd := "b000".U // M_XRD
+			io.mem.req.bits.cmd := M_XRD// M_XRD
 			io.mem.req.bits.size := "b010".U // MT_W (4 bytes)
 			io.mem.req.bits.signed := false.B
-			io.mem.req.bits.data := 0.U 
+			io.mem.req.bits.phys := true.B
+			printf(p"sLoad\n")
 		}
 
-		switch(state) {
-		    is(sIdle) {
-		        when(cmd.valid) {
-                    when(doLoadKernel) {
-						// testbench: send done signal
-						rd := cmd.bits.inst.rd 
-						printf(p"doLoadKernel")
-                        kernelSize := cmd.bits.rs1
-                        baseAddr := cmd.bits.rs2
-                        kerRow := 0.U 
-                        kerCol := 0.U 
-                        state := sLoad
-                    }
-		        }
-		    }
+		when (state === sResp) {
+			printf(p"sResp\n")
+		}
 
-		    is(sLoad) {
-				printf(p"sLoad")
-		        when(io.mem.req.fire) {
-		            state := sWaitMem 
-		        }
-		    }
-		    // TODO: DMA bulk memory transfer
-		    is(sWaitMem) {
-		        when(io.mem.resp.fire) {
-					printf(p"[ADDR = 0x${Hexadecimal(loadAddr)}]\n")
-		            kernel(kerRow)(kerCol) := io.mem.resp.bits.data
-
-		            when(kerCol === (kernelDim - 1.U)) {
-		                kerCol := 0.U 
-		                kerRow := kerRow + 1.U 
-		            }.otherwise {
-		                kerCol := kerCol + 1.U 
-		            }
-		            state := Mux(loadDone, sDone, sLoad)
-		        }
-		    }
-
-		    is(sDone) {
-				// testbench: send done signal
-				doneSignal := 1.U 
-				// testbench: print loaded kernel
-				printf(p"[RoCC Kernel loaded:\n]")
-				for (i <- 0 until 5) {
-					for (j <- 0 until 5) {
-						printf(p"${kernel(i)(j)} ")
-					}
-					printf(p"\n")
+		when (state === sDone) {
+			// testbench: send done signal
+			doneSignal := 1.U 
+			// testbench: print loaded kernel
+			printf(p"[RoCC Kernel loaded:\n]")
+			for (i <- 0 until 5) {
+				for (j <- 0 until 5) {
+					printf(p"${kernel(i)(j)} ")
 				}
-		        when(!cmd.valid) {
-					doneSignal := 0.U 
-		            state := sIdle
-		        }
-		    }
+				printf(p"\n")
+			}
+			when(!io.cmd.valid) {
+				doneSignal := 0.U 
+				state := sIdle
+			}
 		}
-}
+	}

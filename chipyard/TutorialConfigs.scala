@@ -108,12 +108,12 @@ class MyMACConfig extends Config(
 )
 
 class WithOurCONV extends Config((site, here, up) => {
-	case BuildRoCC => up(BuildRoCC) ++ Seq(
-		(p: Parameters) => {
-			val CONV = LazyModule.apply(new OurCONV(OpcodeSet.custom0)(p))
-			CONV
-		}
-	)
+  case BuildRoCC => up(BuildRoCC) ++ Seq(
+    (p: Parameters) => {
+      val conv = LazyModule(new CONV.OurCONV(OpcodeSet.custom0)(p))
+      conv
+    }
+  )
 })
 
 class OurCONVConfig extends Config(
