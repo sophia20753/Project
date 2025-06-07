@@ -4,3 +4,5 @@ ihatetiledconvolution.xlsx
 conv
 test/test_kernelLoader.dSYM/*
 test/test_kernelLoader
+test/baseCPUConv.dSYM/*
+test/baseCPUConv
