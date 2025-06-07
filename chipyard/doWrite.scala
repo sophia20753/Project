@@ -19,65 +19,23 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
         val state = RegInit(sIdle)
 
         val cmd = Queue(io.cmd)
-        val funct = cmd.bits.inst.funct
+        val funct = cmd.bits.inst.funct // funct 7
         val doWrite = (funct === 1.U) 
 
-        val matrixType = cmd.bits.rs1(0) 
-        val targetAddr = cmd.bits.rs2 
+        val stride = 2.U // 16-bit stride
+        val writeIdx = RegInit(0.U(8.W))
         val writeVal = 42.U(xLen.W)
+        val writesAcked = RegInit(0.U(8.W))
 
         val reg_rd = Reg(UInt(5.W))
         val reg_xd = Reg(Bool())
-        val reg_targetAddr = Reg(UInt(xLen.W))
+        val reg_baseAddr = Reg(UInt(xLen.W))
         val reg_dprv = Reg(UInt(2.W))
-
-        cmd.ready := (state === sIdle)
-
-        // FSM
-        when(state === sIdle) {
-            when(cmd.fire && doWrite) {
-                reg_rd := cmd.bits.inst.rd 
-                reg_xd := cmd.bits.inst.xd 
-                reg_targetAddr := cmd.bits.rs2 
-                reg_dprv := cmd.bits.status.dprv
-                state := sWriteReq
-                printf("[RoCC] Write command received\n")
-            }
-        }
-
-        when(state === sWriteReq) {
-            val writeData = writeVal
-            io.mem.req.valid := true.B 
-            io.mem.req.bits.addr := reg_targetAddr
-            io.mem.req.bits.tag := 0.U
-            io.mem.req.bits.cmd := M_XWR
-            io.mem.req.bits.size := log2Ceil(xLen / 8).U
-            io.mem.req.bits.signed := false.B
-            io.mem.req.bits.data := writeData
-            io.mem.req.bits.phys := false.B
-            io.mem.req.bits.dprv := reg_dprv
-
-            printf(p"[RoCC] Memory write request for addr: ${io.mem.req.bits.addr} with data: ${io.mem.req.bits.data} sent\n")
-            
-            when(io.mem.req.ready) {
-                state := sDone 
-                printf("[RoCC] Memory write request done\n")
-            }
-        }
-        
-        when(state === sDone) {
-            when(reg_xd && io.resp.ready) {
-                io.resp.valid := true.B 
-                io.resp.bits.rd := reg_rd 
-                io.resp.bits.data := 1.U 
-                state := sIdle
-                printf(p"[RoCC] Written data: ${io.resp.bits.data} to rd: ${io.resp.bits.rd} success back\n")
-            }.elsewhen(!reg_xd) {
-                state := sIdle
-            }
-        }
+        val reg_numElements = Reg(UInt(8.W))
 
         // Default
+        cmd.ready := (state === sIdle)
+
         when(state =/= sWriteReq) {
             io.mem.req.valid := false.B 
             io.mem.req.bits.addr := 0.U
@@ -97,4 +55,66 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 
         io.busy := (state =/= sIdle)
         io.interrupt := false.B
+
+        // FSM
+        when(state === sIdle) {
+            when(cmd.fire && doWrite) {
+                reg_rd := cmd.bits.inst.rd 
+                reg_xd := cmd.bits.inst.xd 
+                reg_baseAddr := cmd.bits.rs2 
+                reg_dprv := cmd.bits.status.dprv
+                reg_numElements := cmd.bits.rs1
+                writeIdx := 0.U
+                writesAcked := 0.U
+                state := sWriteReq
+                printf("[RoCC] Write command received\n")
+            }
+        }
+
+        when(state === sWriteReq) {
+            when(writeIdx < reg_numElements) {
+                io.mem.req.valid := true.B 
+                io.mem.req.bits.addr := reg_baseAddr + (writeIdx << 3)
+                io.mem.req.bits.tag := writeIdx + 1.U // must be non-zero
+                io.mem.req.bits.cmd := M_XWR
+                io.mem.req.bits.size := 3.U // 64 bits
+                io.mem.req.bits.signed := false.B 
+                io.mem.req.bits.data := (writeVal + writeIdx)(15, 0) // truncate to 16 bits
+                io.mem.req.bits.phys := false.B 
+                io.mem.req.bits.dprv := reg_dprv
+
+                when(io.mem.req.fire) {
+                    printf(p"[RoCC] Sent write: addr=0x${Hexadecimal(io.mem.req.bits.addr)}, tag=${io.mem.req.bits.tag}, data=0x${Hexadecimal(io.mem.req.bits.data)}\n")
+                    writeIdx := writeIdx + 1.U 
+                    when(writeIdx + 1.U === reg_numElements) {
+                        state := sWaitResp 
+                        printf("[RoCC] All write requests issued, waiting for responses\n")
+                    }
+                }
+            }
+        }
+
+        when(state === sWaitResp) {
+            when(io.mem.resp.valid) {
+                val tag = io.mem.resp.bits.tag 
+                printf(p"[RoCC] Write response received for tag=${tag}\n")
+                writesAcked := writesAcked + 1.U 
+                when(tag === reg_numElements) {
+                    state := sDone
+                    printf("[RoCC] All write responses received\n")
+                }
+            }
+        }
+        
+        when(state === sDone) {
+            when(reg_xd && io.resp.ready) {
+                io.resp.valid := true.B 
+                io.resp.bits.rd := reg_rd 
+                io.resp.bits.data := 1.U 
+                state := sIdle
+                printf(p"[RoCC] Written data: ${io.resp.bits.data} to rd: ${io.resp.bits.rd} success back\n")
+            }.elsewhen(!reg_xd) {
+                state := sIdle
+            }
+        }
 	}
