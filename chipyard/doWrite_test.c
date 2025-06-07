@@ -1,6 +1,8 @@
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "rocc.h"
+#include "unistd.h"
 
 #define CUSTOM_OPCODE 0
 #define FUNCT7_DOLOADMATRIX 0x01 // 0b0000001
@@ -18,24 +20,25 @@ static inline uint64_t doLoadMatrix(uint64_t num_elements, uint64_t matrix_ptr) 
 }
 
 int main() {
-    // A tiny 1x1 test "matrix" (a single 64-bit word)
-    static uint64_t matrix_data[4] = {0, 0, 0, 0};
+    static uint64_t matrix_data[4] = {0, 0, 0, 0}; // 4 packed words = 16 values max
+    uint16_t* unpacked_view = (uint16_t*)matrix_data;
 
     printf("Matrix address: 0x%lx\n", (uintptr_t)&matrix_data[0]);
 
-    asm volatile("fence" ::: "memory"); // Ensure memory is visible to RoCC
+    asm volatile("fence" ::: "memory");
 
-    for (int i = 0; i < 4; ++i) {
-        printf("matrix_data[%d] = %u (0x%04x)\n", i, matrix_data[i], matrix_data[i]);
+    printf("Before:\n");
+    for (int i = 0; i < 16; ++i) {
+        printf("unpacked_view[%d] = %u (0x%04x)\n", i, unpacked_view[i], unpacked_view[i]);
     }
 
-    // Call the accelerator to load matrix
-    uint64_t result = doLoadMatrix(4, (uint64_t)&matrix_data[0]);  // 0 = input matrix
+    uint64_t result = doLoadMatrix(16, (uint64_t)&matrix_data[0]);
 
     printf("Instruction sent. Accelerator returned: 0x%lx\n", result);
-    
-    for (int i = 0; i < 4; ++i) {
-        printf("matrix_data[%d] = %u (0x%04x)\n", i, matrix_data[i], matrix_data[i]);
+
+    printf("After:\n");
+    for (int i = 0; i < 16; ++i) {
+        printf("unpacked_view[%d] = %u (0x%04x)\n", i, unpacked_view[i], unpacked_view[i]);
     }
 
     if (result == 1) {
@@ -44,5 +47,5 @@ int main() {
         printf("Accelerator did not return expected result.\n");
     }
 
-    return 0;
+    _exit(0);
 }

@@ -25,13 +25,16 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
         val stride = 2.U // 16-bit stride
         val writeIdx = RegInit(0.U(8.W))
         val writeVal = 42.U(xLen.W)
-        val writesAcked = RegInit(0.U(8.W))
 
         val reg_rd = Reg(UInt(5.W))
         val reg_xd = Reg(Bool())
         val reg_baseAddr = Reg(UInt(xLen.W))
         val reg_dprv = Reg(UInt(2.W))
         val reg_numElements = Reg(UInt(8.W))
+
+        // Packing logic
+        val elementsPerWord = 4.U 
+        val totalPackedWrites = (reg_numElements + 3.U) >> 2 
 
         // Default
         cmd.ready := (state === sIdle)
@@ -65,7 +68,6 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
                 reg_dprv := cmd.bits.status.dprv
                 reg_numElements := cmd.bits.rs1
                 writeIdx := 0.U
-                writesAcked := 0.U
                 state := sWriteReq
                 printf("[RoCC] Write command received\n")
             }
@@ -73,13 +75,21 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 
         when(state === sWriteReq) {
             when(writeIdx < reg_numElements) {
+                // Packing logic
+                val base = writeIdx << 2 
+                val v0 = (writeVal + base)(15,0)
+                val v1 = (writeVal + base + 1.U)(15,0)
+                val v2 = (writeVal + base + 2.U)(15,0)
+                val v3 = (writeVal + base + 3.U)(15,0)
+                val packedData = Cat(v3, v2, v1, v0)
+
                 io.mem.req.valid := true.B 
                 io.mem.req.bits.addr := reg_baseAddr + (writeIdx << 3)
                 io.mem.req.bits.tag := writeIdx + 1.U // must be non-zero
                 io.mem.req.bits.cmd := M_XWR
                 io.mem.req.bits.size := 3.U // 64 bits
                 io.mem.req.bits.signed := false.B 
-                io.mem.req.bits.data := (writeVal + writeIdx)(15, 0) // truncate to 16 bits
+                io.mem.req.bits.data := packedData
                 io.mem.req.bits.phys := false.B 
                 io.mem.req.bits.dprv := reg_dprv
 
@@ -97,8 +107,6 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
         when(state === sWaitResp) {
             when(io.mem.resp.valid) {
                 val tag = io.mem.resp.bits.tag 
-                printf(p"[RoCC] Write response received for tag=${tag}\n")
-                writesAcked := writesAcked + 1.U 
                 when(tag === reg_numElements) {
                     state := sDone
                     printf("[RoCC] All write responses received\n")
