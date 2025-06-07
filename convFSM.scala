@@ -228,7 +228,7 @@ class ConvolutionFSM(val N: Int, val K: Int) extends Module {
 
         is(writeResult) {
 
-            result(outRow)(outCol) := acc_buffer
+            result(outRow)(outCol) := acc_buffer //made changes here !!! truncate
             acc_buffer := 0.F(32.W, 8.BP)
             outIdx := outIdx + 1.U
             when(finishedAll) {
