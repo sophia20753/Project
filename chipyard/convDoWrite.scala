@@ -29,7 +29,7 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
         val doCompute = (funct === 3.U)
         
         val kernel = VecInit(Seq(
-            VecInit(Seq(1.0.F(16.W, 8.BP)))
+            VecInit(Seq(128.0.F(16.W, 8.BP)))
         ))
 
         val input = VecInit(Seq(
@@ -40,6 +40,8 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
         val writeIdx = RegInit(0.U(8.W))
         val stride = 2.U
         val overflow = Reg(Bool())
+
+        val overflowBits = RegInit(0.U(64.W))
 
         // saturation bounds
         val maxVal = FixedPoint.fromDouble(math.pow(2, 7) - math.pow(2, -8), 16.W, 8.BP)
@@ -91,10 +93,10 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
         val outCol = outIdx % N.U
 
         //val count = RegInit(0.U(32.W))
-        // val acc_buffer = RegInit(0.F(32.W, 8.BP))
-        // val acc = RegInit(VecInit(Seq.fill(K)(VecInit(Seq.fill(K)(0.F(32.W, 8.BP))))))
-        val acc_buffer = RegInit(0.F(16.W, 8.BP))
-        val acc = RegInit(VecInit(Seq.fill(K)(VecInit(Seq.fill(K)(0.F(16.W, 8.BP))))))
+        val acc_buffer = RegInit(0.F(32.W, 8.BP))
+        val acc = RegInit(VecInit(Seq.fill(K)(VecInit(Seq.fill(K)(0.F(32.W, 8.BP))))))
+        // val acc_buffer = RegInit(0.F(16.W, 8.BP))
+        // val acc = RegInit(VecInit(Seq.fill(K)(VecInit(Seq.fill(K)(0.F(16.W, 8.BP))))))
         val result = RegInit(VecInit(Seq.fill(N)(VecInit(Seq.fill(N)(0.F(16.W, 8.BP))))))
 
         val a = RegInit(VecInit(Seq.fill(K)(VecInit(Seq.fill(K)(0.F(16.W, 8.BP))))))
@@ -172,8 +174,8 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
            
                     for (i <- 0 until K) {
                         for (j <- 0 until K) {
-                            //acc(i)(j) := 0.F(32.W, 8.BP)
-                            acc(i)(j) := 0.F(16.W, 8.BP)
+                            acc(i)(j) := 0.F(32.W, 8.BP)
+                            // acc(i)(j) := 0.F(16.W, 8.BP)
                             a(i)(j) := 0.F(16.W, 8.BP)
                             b(i)(j) := 0.F(16.W, 8.BP)
                         }
@@ -255,13 +257,13 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
             }
             is(sAcc2) {
             	printf(p"[RoCC][sAcc2] Accumulating: state=$state\n")
-                //var sum = 0.F(32.W, 8.BP)
-                var sum = 0.F(16.W, 8.BP)
+                var sum = 0.F(32.W, 8.BP)
+                // var sum = 0.F(16.W, 8.BP)
                 for (i <- 0 until K) {
                     for (j <- 0 until K) {
                         sum = sum + acc(i)(j)
-                        //acc(i)(j) := 0.F(32.W, 8.BP)
-                        acc(i)(j) := 0.F(16.W, 8.BP)
+                        acc(i)(j) := 0.F(32.W, 8.BP)
+                        // acc(i)(j) := 0.F(16.W, 8.BP)
                         a(i)(j) := 0.F(16.W, 8.BP)
                         b(i)(j) := 0.F(16.W, 8.BP)
                     }
@@ -286,22 +288,22 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
                 state := writeResult
             }
             is(writeResult) {
-                
+                val index = (outRow * N.U) + outCol // flatten 2D index 
                 when(acc_buffer > maxVal) {
                     result(outRow)(outCol) := maxVal // clamp to max.
-                    overflow := true.B 
+                    overflowBits := overflowBits.bitSet(index, true.B)
                 } .elsewhen(acc_buffer < minVal) {
                     result(outRow)(outCol) := minVal // clamp to min.
-                    overflow := true.B 
+                    overflowBits := overflowBits.bitSet(index, true.B)
                 } .otherwise {
-                    result(outRow)(outCol) := (acc_buffer.asUInt()(15, 0)).asFixedPoint(8.BP) // cast to 16-bit fixed point
-                    overflow := false.B
+                    result(outRow)(outCol) := (acc_buffer.asSInt()(15, 0)).asFixedPoint(8.BP) // cast to 16-bit fixed point
+                    // no need to modify overflowBits; default is 0
                 }       
                 printf(p"[RoCC][writeResult] outIdx = $outIdx, outRow = $outRow, outCol = $outCol\n")
                 printf(p"  acc_buffer = ${acc_buffer.asUInt()}, clamped value = ${result(outRow)(outCol).asUInt()}, overflow = $overflow\n")  
 
-                //acc_buffer := 0.F(32.W, 8.BP)
-                acc_buffer := 0.F(16.W, 8.BP)
+                acc_buffer := 0.F(32.W, 8.BP)
+                // acc_buffer := 0.F(16.W, 8.BP)
                 outIdx := outIdx + 1.U
                 when(finishedAll) {
                     state := sWriteReq
@@ -372,7 +374,7 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
                 when(reg_xd && io.resp.ready) {
                     io.resp.valid := true.B 
                     io.resp.bits.rd := reg_rd 
-                    io.resp.bits.data := 1.U 
+                    io.resp.bits.data := overflowBits
                     state := sIdle
                     printf(p"[RoCC] Written data: ${io.resp.bits.data} to rd: ${io.resp.bits.rd} success back\n")
                 }.elsewhen(!reg_xd) {
