@@ -15,32 +15,28 @@
 #define FUNCT7_KERNELLOAD 0x02
 #define FUNCT7_KERNELSIZE 0x04
 
-static inline uint64_t doprint() {
+static inline void doprint() {
     // rd = 0, funct3 = 0b011, funct7 = 0b0000000
     // size_mode in rs1 (0=1x1, 1=3x3, 2=5x5)
     // ptr in rs2 = address of first element
     //ROCC_INSTRUCTION_SS(CUSTOM_OPCODE, k_size, ptr, FUNCT7_DOLK);
-    uint64_t result;
-    ROCC_INSTRUCTION_DSS(CUSTOM_OPCODE, result, 0, 0, FUNCT7_DOLK);
-    return result;
+    ROCC_INSTRUCTION_SS(CUSTOM_OPCODE, 0, 0, FUNCT7_DOLK);
+    return;
 }
 
-static inline uint64_t SetKernelSize(uint64_t size) {
-    uint64_t result;
-    ROCC_INSTRUCTION_DSS(CUSTOM_OPCODE, result, size, 0, FUNCT7_KERNELSIZE);
-    return result;
+static inline void SetKernelSize(uint64_t size) {
+    ROCC_INSTRUCTION_SS(CUSTOM_OPCODE, size, 0, FUNCT7_KERNELSIZE);
+    return;
 }
 
-static inline uint64_t KernelLoad(uint64_t ptr, uint64_t addr) {
-    uint64_t result;
-    ROCC_INSTRUCTION_DSS(CUSTOM_OPCODE, result, ptr, addr, FUNCT7_KERNELLOAD);
-    return result;
+static inline void KernelLoad(uint64_t ptr, uint64_t addr) {
+    ROCC_INSTRUCTION_SS(CUSTOM_OPCODE, ptr, addr, FUNCT7_KERNELLOAD);
+    return;
 }
 
-static inline uint64_t InputLoad(uint64_t ptr, uint64_t addr) {
-    uint64_t result;
-    ROCC_INSTRUCTION_DSS(CUSTOM_OPCODE, result, ptr, addr, FUNCT7_INPUTLOAD);
-    return result;
+static inline void InputLoad(uint64_t ptr, uint64_t addr) {
+    ROCC_INSTRUCTION_SS(CUSTOM_OPCODE, ptr, addr, FUNCT7_INPUTLOAD);
+    return;
 }
 
 uint16_t float_to_fixed88(float value) {
@@ -77,9 +73,10 @@ int main() {
 
     printf("%f\n", kernel[0]);
     
-    //uint16_t kernel_fx[KERNEL_LEN];
+
     uint64_t kernel_packed[PACKED_KERNEL_LEN];
     uint64_t input_packed[PACKED_INPUT_LEN];
+
     // Convert floats to fixed-point 8.8
     //for (int i = 0; i < KERNEL_LEN; i++) {
     //    kernel_fx[i] = float_to_fixed88(kernel[i]);
@@ -110,28 +107,24 @@ int main() {
     
 
     asm volatile("fence" ::: "memory");
-    uint64_t result; 
 
-    result = SetKernelSize(2); // 5x5 kernel
+    SetKernelSize(2); // 5x5 kernel
 
     for (int i = 0; i < PACKED_KERNEL_LEN; i++) {
-        result = KernelLoad((uint64_t)&kernel_packed[i], (uint64_t)i); // 2 = 5x5 kernel
+        KernelLoad((uint64_t)&kernel_packed[i], (uint64_t)i); // 2 = 5x5 kernel
         printf("Sending kernel %d, %d, %d, %d: 0x%0.16lx\n", 4*i,4*i+1,4*i+2,4*i+3, kernel_packed[i]);
     }
     printf("Kernel Loaded!\n");
 
     for (int i = 0; i < PACKED_INPUT_LEN; i++) {
-        result = InputLoad((uint64_t)&input_packed[i], (uint64_t)i); // 2 = 5x5 kernel
+        InputLoad((uint64_t)&input_packed[i], (uint64_t)i); // 2 = 5x5 kernel
         printf("Sending input %d, %d, %d, %d: 0x%0.16lx\n", 4*i,4*i+1,4*i+2,4*i+3, input_packed[i]);
     }
     printf("Kernel Loaded!\n");
 
     doprint();
     
-    if (result == 1) {
-        printf("Accelerator done loading kernel.\n");
-    } else {
-        printf("Accelerator did not return success.\n");
-    }
+    printf("Accelerator done loading kernel.\n");
+    
     return 0;
 }
