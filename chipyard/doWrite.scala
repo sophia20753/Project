@@ -7,6 +7,7 @@ import freechips.rocketchip.tile._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.rocket._
+import chisel3.experimental.FixedPoint
 
 class OurCONV(opcodes: OpcodeSet, n: Int = 8)(implicit p: Parameters) extends LazyRoCC(opcodes) {
     override lazy val module = new OurCONVModuleImp(this)
@@ -24,7 +25,7 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 
         val stride = 2.U // 16-bit stride
         val writeIdx = RegInit(0.U(8.W))
-        val writeVal = 42.U(xLen.W)
+        val data = RegInit(0.U(64.W))
 
         val reg_rd = Reg(UInt(5.W))
         val reg_xd = Reg(Bool())
@@ -75,23 +76,22 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 
         when(state === sWriteReq) {
             when(writeIdx < reg_numElements) {
-                // Packing logic
-                val base = writeIdx << 2 
-                val v0 = (writeVal + base)(15,0)
-                val v1 = (writeVal + base + 1.U)(15,0)
-                val v2 = (writeVal + base + 2.U)(15,0)
-                val v3 = (writeVal + base + 3.U)(15,0)
-                val packedData = Cat(v3, v2, v1, v0)
-
                 io.mem.req.valid := true.B 
                 io.mem.req.bits.addr := reg_baseAddr + (writeIdx << 3)
                 io.mem.req.bits.tag := writeIdx + 1.U // must be non-zero
                 io.mem.req.bits.cmd := M_XWR
                 io.mem.req.bits.size := 3.U // 64 bits
                 io.mem.req.bits.signed := false.B 
-                io.mem.req.bits.data := packedData
                 io.mem.req.bits.phys := false.B 
                 io.mem.req.bits.dprv := reg_dprv
+
+                // Dummy fixed-point values
+                val v0 = 1.1.F(16.W, 8.BP)
+                val v1 = 0.0.F(16.W, 8.BP)
+                val v2 = -2.5.F(16.W, 8.BP)
+                val v3 = 3.0.F(16.W, 8.BP)
+                val data = Cat(v3.asSInt().asUInt()(15,0), v2.asSInt().asUInt()(15,0), v1.asSInt().asUInt()(15,0), v0.asSInt().asUInt()(15,0))
+                io.mem.req.bits.data := data
 
                 when(io.mem.req.fire) {
                     printf(p"[RoCC] Sent write: addr=0x${Hexadecimal(io.mem.req.bits.addr)}, tag=${io.mem.req.bits.tag}, data=0x${Hexadecimal(io.mem.req.bits.data)}\n")
@@ -106,8 +106,8 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 
         when(state === sWaitResp) {
             when(io.mem.resp.valid) {
-                val tag = io.mem.resp.bits.tag 
-                when(tag === reg_numElements) {
+                //val tag = io.mem.resp.bits.tag 
+                when(io.mem.resp.bits.tag === reg_numElements) {
                     state := sDone
                     printf("[RoCC] All write responses received\n")
                 }
