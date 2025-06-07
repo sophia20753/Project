@@ -18,8 +18,9 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 	with HasCoreParameters {
 		
 		// FSM states
-		val sIdle :: sLoadKernel :: sLoadInput :: sSetup :: sLoadFrame :: sAcc1 :: sAcc2 :: writeResult :: sDone :: Nil = Enum(9)
+		val sIdle :: sLoadKernel :: sLoadInput :: sSetup :: sLoadFrame :: sAcc1 :: sAcc2 :: writeResult :: sWriteReq :: sWaitResp :: sDone :: Nil = Enum(11)
 		val state = RegInit(sIdle)
+		val N = 8.U // Output size, 8 for 8x8 output
 
 		val kernel = Reg(Vec(25, FixedPoint(16.W, 8.BP)))
 		val kernelSize = Reg(UInt(2.W)) // Size of the kernel, 0: 1x1, 1: 3x3, 2: 5x5
@@ -39,6 +40,27 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 		val doSetKernelSize = funct === 4.U
         val memRespTag = io.mem.resp.bits.tag
 
+		// *************************************
+		// From convDoWrite.scala
+		val writeIdx = RegInit(0.U(8.W))
+        val stride = 2.U
+        val overflow = Reg(Bool())
+
+		val overflowBits = RegInit(0.U(64.W))
+
+		// saturation bounds
+        val maxVal = FixedPoint.fromDouble(math.pow(2, 7) - math.pow(2, -8), 16.W, 8.BP)
+        val minVal = FixedPoint.fromDouble(-math.pow(2, 7), 16.W, 8.BP)
+
+
+		val reg_rd = Reg(UInt(5.W))
+        val reg_xd = Reg(Bool())
+        val reg_baseAddr = Reg(UInt(xLen.W))
+        val reg_dprv = Reg(UInt(2.W))
+        val reg_numElements = (((N * N) + 3.U) / 4.U)
+        val reg_inputTileType = Reg(UInt(10.W)) 
+		// *************************************
+
         //datapath
         val rs1 = cmd.bits.rs1
 		val rs2 = cmd.bits.rs2
@@ -48,12 +70,12 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 
 		val topLeft :: top :: topRight :: left :: center :: right :: bottomLeft :: bottom :: bottomRight :: full :: Nil = Enum(10)
 		val tileType = RegInit(full) // Tile type for the convolution operation
-		val done = RegInit(false.B) // Flag to indicate completion of the operation
+		//val done = RegInit(false.B) // Flag to indicate completion of the operation
 
 		// Loop counters
 		val pad = kernelSize 
 		val K = 2.U*pad+1.U // Kernel size, 1 for 1x1, 3 for 3x3, 5 for 5x5
-		val N = 8.U // Output size, 8 for 8x8 output
+		
 		
 
 		val inRow = RegInit(0.U(4.W))
@@ -85,6 +107,12 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 
 		// State machine
 		when (cmd.fire && state === sIdle && doCompute) {
+			reg_rd := cmd.bits.inst.rd 
+			reg_xd := cmd.bits.inst.xd 
+			reg_baseAddr := cmd.bits.rs1
+			reg_dprv := cmd.bits.status.dprv
+			writeIdx := 0.U
+
 			tileType := rs2 // Set tile type based on rs2
 			when (rs2 === full) {
                     inRowStart := 0.U
@@ -153,7 +181,7 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 		when (state === sSetup) {
 			inRow := inRowStart
 			inCol := inColStart
-			done := false.B
+			//done := false.B
 			state := sLoadFrame // Load the first frame
 		}
 
@@ -260,18 +288,107 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 		}
 
 		when (state === writeResult) {
-			result(outRow)(outCol) := acc_buffer //make changes here !!! truncate
+			
+			// *********************************************
+			// from convDoWrite.scala
+			val index = (outRow * N) + outCol // flatten 2D index 
+                when(acc_buffer > maxVal) {
+                    result(outRow)(outCol) := maxVal // clamp to max.
+                    overflowBits := overflowBits.bitSet(index, true.B)
+                } .elsewhen(acc_buffer < minVal) {
+                    result(outRow)(outCol) := minVal // clamp to min.
+                    overflowBits := overflowBits.bitSet(index, true.B)
+                } .otherwise {
+                    result(outRow)(outCol) := (acc_buffer.asSInt()(15, 0)).asFixedPoint(8.BP) // cast to 16-bit fixed point
+                    // no need to modify overflowBits; default is 0
+                }  
+
+			// *********************************************
+
+			//result(outRow)(outCol) := acc_buffer //make changes here !!! truncate
             acc_buffer := 0.F(32.W, 8.BP)
             outIdx := outIdx + 1.U
             when(finishedAll) {
-                state := sIdle
-				done := true.B // Mark the operation as done
+                state := sWriteReq
+				//done := true.B // Mark the operation as done
             }.otherwise {
                 state := sLoadFrame // Load the next frame
             }
             printf(p"Cycle: ${count}, state: ${state}, inCol = ${inCol}, inRow = ${inRow}, outIdx: ${outIdx}, " + 
             p"acc_buffer: ${acc_buffer.asUInt}, lastOutputPixel = ${lastOutputPixel}, finishedAll = ${finishedAll}\n")
 		}
+
+		// ********************************************
+		// From convDoWrite.scala
+		when (state === sWriteReq) {
+			when(writeIdx < reg_numElements) {
+                    printf(p"[RoCC][sWriteReq] writeIdx = $writeIdx, reg_numElements = $reg_numElements\n")
+                    io.mem.req.valid := true.B 
+                    io.mem.req.bits.addr := reg_baseAddr + (writeIdx << 3)
+                    io.mem.req.bits.tag := writeIdx + 1.U // must be non-zero
+                    io.mem.req.bits.cmd := M_XWR
+                    io.mem.req.bits.size := 3.U // 64 bits
+                    io.mem.req.bits.signed := false.B 
+                    io.mem.req.bits.phys := false.B 
+                    io.mem.req.bits.dprv := reg_dprv
+
+                    val flatIdx = writeIdx << 2
+
+                    // Extract 4 elements
+                    val vals = Wire(Vec(4, FixedPoint(16.W, 8.BP)))
+
+                    for (i <- 0 until 4) {
+                        val idx = flatIdx + i.U 
+                        val row = idx / N 
+                        val col = idx % N 
+                        val inBounds = idx < (N * N) 
+                        vals(i) := Mux(inBounds, result(row)(col), 0.F(16.W, 8.BP))
+                    }
+
+                    val data = Cat(
+                        vals(3).asSInt().asUInt()(15,0),
+                        vals(2).asSInt().asUInt()(15,0),
+                        vals(1).asSInt().asUInt()(15,0),
+                        vals(0).asSInt().asUInt()(15,0)
+                    )
+
+                    io.mem.req.bits.data := data
+
+                    when(io.mem.req.fire) {
+                        printf(p"[RoCC] Sent write: addr=0x${Hexadecimal(io.mem.req.bits.addr)}, tag=${io.mem.req.bits.tag}, data=0x${Hexadecimal(io.mem.req.bits.data)}\n")
+                        writeIdx := writeIdx + 1.U 
+                        when(writeIdx + 1.U === reg_numElements) {
+                            state := sWaitResp 
+                            printf("[RoCC] All write requests issued, waiting for responses\n")
+                        }
+                    }
+                }
+		}
+
+		when (state === sWaitResp) {
+			when(io.mem.resp.valid) {
+				//val tag = io.mem.resp.bits.tag 
+				when(io.mem.resp.bits.tag === reg_numElements) {
+					state := sDone
+					printf("[RoCC] All write responses received\n")
+				}
+			}
+		}
+
+		when (state === sDone) {
+			when(reg_xd && io.resp.ready) {
+				io.resp.valid := true.B 
+				io.resp.bits.rd := reg_rd 
+				io.resp.bits.data := overflowBits
+				state := sIdle
+				printf(p"[RoCC] Written data: ${io.resp.bits.data} to rd: ${io.resp.bits.rd} success back\n")
+			}.elsewhen(!reg_xd) {
+				state := sIdle
+			}
+		}
+
+		// ********************************************
+
 
 		// Computation end
 		//********************************************
@@ -382,14 +499,17 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
         val stallLoad = doLoad && !io.mem.req.ready
         val stallResp = doResp && !io.resp.ready
 
-        cmd.ready := !stallReg && !stallLoad && !stallResp
+        cmd.ready := !stallReg && !stallLoad && !stallResp && state === sIdle
 
         // PROC RESPONSE INTERFACE
-        io.resp.valid := cmd.valid && doResp && !stallReg && !stallLoad
-        io.resp.bits.rd := cmd.bits.inst.rd
-        io.resp.bits.data := 1.U
+        when(state =/= sDone) {
+            io.resp.valid := false.B 
+            io.resp.bits := DontCare
+        }
+        //io.resp.bits.rd := cmd.bits.inst.rd
+        //io.resp.bits.data := 1.U
 
-        io.busy := cmd.valid || busy.reduce(_ || _) || state === sSetup || state === sLoadFrame || state === sAcc1 || state === sAcc2 || state === writeResult
+        io.busy := cmd.valid || busy.reduce(_ || _) || state =/= sIdle
         io.interrupt := false.B
         
 
