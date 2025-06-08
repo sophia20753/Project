@@ -514,14 +514,27 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
         
 
         // Memory request interface
-        io.mem.req.valid := cmd.valid && doLoad && !stallReg && !stallResp
-        io.mem.req.bits.addr := rs1
-        io.mem.req.bits.tag := rs2
-        io.mem.req.bits.cmd := M_XRD
-        io.mem.req.bits.size := log2Ceil(8).U
-        io.mem.req.bits.signed := false.B
-        io.mem.req.bits.data := 0.U
-        io.mem.req.bits.phys := false.B
-        io.mem.req.bits.dprv := cmd.bits.status.dprv
+		when (doLoad) {
+			io.mem.req.valid := cmd.valid && !stallReg && !stallResp
+			io.mem.req.bits.addr := rs1
+			io.mem.req.bits.tag := rs2
+			io.mem.req.bits.cmd := M_XRD
+			io.mem.req.bits.size := log2Ceil(8).U
+			io.mem.req.bits.signed := false.B
+			io.mem.req.bits.data := 0.U
+			io.mem.req.bits.phys := false.B
+			io.mem.req.bits.dprv := cmd.bits.status.dprv
+		}.elsewhen (state =/= sWriteReq) {
+			io.mem.req.valid := false.B 
+            io.mem.req.bits.addr := 0.U
+            io.mem.req.bits.tag := 0.U
+            io.mem.req.bits.cmd := M_XWR
+            io.mem.req.bits.size := log2Ceil(xLen / 8).U
+            io.mem.req.bits.signed := false.B
+            io.mem.req.bits.data := 0.U
+            io.mem.req.bits.phys := false.B
+            io.mem.req.bits.dprv := reg_dprv
+		}
+		
 
 	}
