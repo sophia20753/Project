@@ -24,7 +24,6 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
         val doLoadKernel = (funct === 2.U)
 
         val kernel = Reg(Vec(5, Vec(5, UInt(16.W))))
-        // val kernel = Reg(Vec(25, UInt(16.W)))
         val kerRow = RegInit(0.U(3.W))
         val kerCol = RegInit(0.U(3.W))
 
@@ -120,16 +119,6 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
                             printf("[RoCC] Wrote kernel(%d)(%d) = 0x%x\n", row, col, kernel(row)(col))
                         }
                     }
-
-                    // val baseIdx = (tag - 1.U) << 2
-                    // for (i <- 0 until 4) {
-                    //     val flatIdx = baseIdx + i.U 
-                    //     when(flatIdx < kernelNumElements) {
-                    //         kernel(flatIdx) := (data >> (16*i)).asUInt()(15, 0)
-                    //         printf("[RoCC] kernel[%d] = 0x%x\n", flatIdx, (data >> (16 * i))(15, 0))
-                    //     }
-                    // }
-                    // readResp := readResp + 1.U
                 }
 
                 // Check for all requests issued, all requests responded
