@@ -18,12 +18,17 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 	with HasCoreParameters {
 		
 		// FSM states
-		val sIdle :: sLoadKernel :: sLoadInput :: sSetup :: sLoadFrame :: sAcc1 :: sAcc2 :: writeResult :: sWriteReq :: sWaitResp :: sDone :: Nil = Enum(11)
+		val sIdle :: sLoadKernel :: sLoadInput :: sSetup :: sLoadFrame :: sAcc1 :: sAcc2 :: writeResult :: sWriteReq :: sWaitWriteResp :: sReadKernelReq :: sLoadKernelDone :: sDone :: Nil = Enum(13)
 		val state = RegInit(sIdle)
 		val N = 8.U // Output size, 8 for 8x8 output
 
 		val kernel = Reg(Vec(25, FixedPoint(16.W, 8.BP)))
+		val kerRow = RegInit(0.U(3.W))
+        val kerCol = RegInit(0.U(3.W))
 		val kernelSize = Reg(UInt(2.W)) // Size of the kernel, 0: 1x1, 1: 3x3, 2: 5x5
+		val reg_kernelBaseAddr = Reg(UInt(xLen.W))
+		val reg_kernelDim = RegInit(0.U(3.W))
+		val kernelNumElements = reg_kernelDim * reg_kernelDim
 		
 		val input = Reg(Vec(144, FixedPoint(16.W, 8.BP)))
         
@@ -34,11 +39,18 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
         
         val doPrint = funct === 0.U
         val loadIsInput = funct === 1.U
-		val loadIsKernel = funct === 2.U
-        val doLoad = funct === 1.U || funct === 2.U
+		val doLoadKernel = (funct === 2.U)
+        val doLoad = funct === 1.U
         val doCompute = funct === 3.U
-		val doSetKernelSize = funct === 4.U
         val memRespTag = io.mem.resp.bits.tag
+
+
+		// *************************************
+		// From doKernelLoad.scala
+		val readReq = RegInit(0.U(8.W)) // tracks number of packed 64-bit words read requests sent
+        val readResp = RegInit(0.U(8.W)) // tracks number of packed 64-bit words read requests responded 
+        val totalReadReq = ((kernelNumElements + 3.U) >> 2).asUInt
+		// *************************************
 
 		// *************************************
 		// From convDoWrite.scala
@@ -106,6 +118,81 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 		count := count + 1.U
 
 		// State machine
+		when (cmd.fire && state === sIdle && doLoadKernel) {
+			reg_rd := cmd.bits.inst.rd 
+			reg_xd := cmd.bits.inst.xd 
+			reg_dprv := cmd.bits.status.dprv 
+			reg_kernelBaseAddr := cmd.bits.rs1 
+			when (cmd.bits.rs2 === 0.U) {
+				reg_kernelDim := 1.U // 1x1 kernel
+			}.elsewhen (cmd.bits.rs2 === 1.U) {
+				reg_kernelDim := 3.U // 3x3 kernel
+			}.otherwise {
+				reg_kernelDim := 5.U // 5x5 kernel
+			}
+			kernelSize := cmd.bits.rs2(1,0)
+			readReq := 0.U 
+			readResp := 0.U
+
+			state := sReadKernelReq
+			printf("[RoCC] Read command received\n")
+		}
+		when (state === sReadKernelReq) {
+			// Issue request
+			val canIssue = readReq < totalReadReq
+			val canResp = readResp < totalReadReq
+			io.mem.req.valid := canIssue 
+			io.mem.req.bits.addr := reg_kernelBaseAddr + (readReq << 3)
+			io.mem.req.bits.tag := readReq + 1.U // must be non-zero 
+			io.mem.req.bits.cmd := M_XRD 
+			io.mem.req.bits.size := log2Ceil(xLen/8).U 
+			io.mem.req.bits.signed := false.B // change this
+			io.mem.req.bits.data := 0.U // only for writes
+			io.mem.req.bits.phys := false.B 
+			io.mem.req.bits.dprv := reg_dprv 
+			
+			when(io.mem.req.fire) {
+				readReq := readReq + 1.U 
+				printf(p"[RoCC] Sent kernel read: addr=0x${Hexadecimal(io.mem.req.bits.addr)}, tag=${io.mem.req.bits.tag}\n")
+			}
+
+			// Handle response
+			when(io.mem.resp.valid && canResp) {   
+				printf(p"[RoCC] Responded kernel read: tag=${io.mem.resp.bits.tag}, data=0x${Hexadecimal(io.mem.resp.bits.data)}\n")          
+				val tag = io.mem.resp.bits.tag 
+				val data = io.mem.resp.bits.data 
+
+				readResp := readResp + 1.U 
+
+				// Unpack data into kernel vector
+				for (i <- 0 until 4) {
+					val flatIdx = ((tag - 1.U) << 2) + i.U 
+					when(flatIdx < kernelNumElements) {
+						val v = data(15+16*i,0+16*i).asSInt.asFixedPoint(8.BP)
+						kernel(flatIdx) := v
+						printf("[RoCC] Wrote kernel(%d) = 0x%x\n",flatIdx, kernel(flatIdx).asUInt)
+					}
+				}
+			}
+			// Check for all requests issued, all requests responded
+			when(!canIssue && !canResp) {
+				state := sLoadKernelDone 
+				printf("[RoCC] All kernel words loaded\n")
+			}
+		}
+		when (state === sLoadKernelDone) {
+			when(reg_xd && io.resp.ready) {
+                    io.resp.valid := true.B 
+                    io.resp.bits.rd := reg_rd 
+                    io.resp.bits.data := 1.U 
+                    state := sIdle 
+                    printf("[RoCC] Written data: %x to rd: %d success back\n", io.resp.bits.data, io.resp.bits.rd)
+                }.elsewhen(!reg_xd) {
+                    // Something went wrong
+                    state := sIdle
+                }
+		}
+
 		when (cmd.fire && state === sIdle && doCompute) {
 			reg_rd := cmd.bits.inst.rd 
 			reg_xd := cmd.bits.inst.xd 
@@ -358,14 +445,14 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
                         printf(p"[RoCC] Sent write: addr=0x${Hexadecimal(io.mem.req.bits.addr)}, tag=${io.mem.req.bits.tag}, data=0x${Hexadecimal(io.mem.req.bits.data)}\n")
                         writeIdx := writeIdx + 1.U 
                         when(writeIdx + 1.U === reg_numElements) {
-                            state := sWaitResp 
+                            state := sWaitWriteResp 
                             printf("[RoCC] All write requests issued, waiting for responses\n")
                         }
                     }
                 }
 		}
 
-		when (state === sWaitResp) {
+		when (state === sWaitWriteResp) {
 			when(io.mem.resp.valid) {
 				//val tag = io.mem.resp.bits.tag 
 				when(io.mem.resp.bits.tag === reg_numElements) {
@@ -394,16 +481,10 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 		//********************************************
 		
 
-		when (cmd.fire && doSetKernelSize) {
-			kernelSize := cmd.bits.rs1(1, 0) // Set kernel size based on rs1 bits
-		}
-
 		when (doLoad && loadIsInput && cmd.fire) {
 			state := sLoadInput // Input load
 		}
-		when (doLoad && loadIsKernel && cmd.fire) {
-			state := sLoadKernel // Kernel load
-		}
+		
 
 		when (doPrint && cmd.fire) {
 			printf(p"Kernel size set to: ${kernelSize}\n")
@@ -465,15 +546,6 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 		}
 
 		// Memory req/resp handling during load states
-        when (io.mem.resp.valid && state === sLoadKernel) {
-			printf(p"MEM RESP: tag=${memRespTag} data=${io.mem.resp.bits.data}\n")
-			kernel(memRespTag * 4.U) := io.mem.resp.bits.data(63, 48).asSInt.asFixedPoint(8.BP)
-			kernel(memRespTag * 4.U + 1.U) :=io.mem.resp.bits.data(47, 32).asSInt.asFixedPoint(8.BP)
-			kernel(memRespTag * 4.U + 2.U) := io.mem.resp.bits.data(31, 16).asSInt.asFixedPoint(8.BP)
-			kernel(memRespTag * 4.U + 3.U) := io.mem.resp.bits.data(15, 0).asSInt.asFixedPoint(8.BP)
-			busy(memRespTag) := false.B // Optionally clear busy for the first index
-			state := sIdle
-		}
 
 		when (io.mem.resp.valid && state === sLoadInput) {
 			printf(p"MEM RESP: tag=${memRespTag} data=${io.mem.resp.bits.data}\n")
@@ -486,9 +558,6 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 		}
         
         when (io.mem.req.fire) {
-			when (state === sLoadKernel) {
-            	busy(rs2) := true.B
-			}
 			when (state === sLoadInput) {
 				busy(rs2+25.U) := true.B
 			}
@@ -502,19 +571,20 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
         cmd.ready := !stallReg && !stallLoad && !stallResp && state === sIdle
 
         // PROC RESPONSE INTERFACE
-        when(state =/= sDone) {
+        when(state =/= sDone && state =/= sLoadKernelDone) {
             io.resp.valid := false.B 
             io.resp.bits := DontCare
         }
         //io.resp.bits.rd := cmd.bits.inst.rd
         //io.resp.bits.data := 1.U
 
-        io.busy := cmd.valid || busy.reduce(_ || _) || state =/= sIdle
+        io.busy := cmd.valid || busy.reduce(_ || _) 
         io.interrupt := false.B
         
 
         // Memory request interface
-		when (doLoad) {
+		
+		when (doLoad && loadIsInput) {
 			io.mem.req.valid := cmd.valid && !stallReg && !stallResp
 			io.mem.req.bits.addr := rs1
 			io.mem.req.bits.tag := rs2
@@ -524,7 +594,7 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 			io.mem.req.bits.data := 0.U
 			io.mem.req.bits.phys := false.B
 			io.mem.req.bits.dprv := cmd.bits.status.dprv
-		}.elsewhen (state =/= sWriteReq) {
+		}.elsewhen (state =/= sWriteReq && state =/= sReadKernelReq) {
 			io.mem.req.valid := false.B 
             io.mem.req.bits.addr := 0.U
             io.mem.req.bits.tag := 0.U
