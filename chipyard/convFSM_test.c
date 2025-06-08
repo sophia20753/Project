@@ -3,12 +3,15 @@
 #include <stdlib.h>
 #include "rocc.h"
 
-#define KERNEL_SIZE 5
-#define INPUT_SIZE 10
+#define KERNEL_SIZE 1
+#define INPUT_SIZE 8
+#define OUTPUT_SIZE 8
 #define INPUT_LEN (INPUT_SIZE * INPUT_SIZE)
 #define KERNEL_LEN (KERNEL_SIZE * KERNEL_SIZE)
+#define OUTPUT_LEN (OUTPUT_SIZE * OUTPUT_SIZE) // Not used in this test, but defined for completeness
 #define PACKED_KERNEL_LEN ((KERNEL_LEN + 3) / 4) // 4 values per 64-bit word
 #define PACKED_INPUT_LEN ((INPUT_LEN + 3) / 4) // 4 values per 64-bit word
+#define PACKED_OUTPUT_LEN ((OUTPUT_LEN + 3) / 4) // 4 values per 64-bit word
 #define CUSTOM_OPCODE 0
 #define FUNCT7_DOLK 0x00
 #define FUNCT7_INPUTLOAD 0x01
@@ -56,6 +59,8 @@ uint16_t float_to_fixed88(float value) {
 }
 
 int main() {
+    
+    /*
     // Example 5x5 kernel (flattened row-wise)
     float kernel[KERNEL_LEN] = {
         1.0,  5.0, -1.0,  0.5,  1.0,
@@ -66,23 +71,62 @@ int main() {
     };
 
     float input[INPUT_LEN] = {
-        1.0,  2.0,  3.0,  4.0,  5.0, 6.0,  7.0,  8.0,  9.0, 10.0,
-        1.0,  2.0,  3.0,  4.0,  5.0, 6.0,  7.0,  8.0,  9.0, 10.0,
-        1.0,  2.0,  3.0,  4.0,  5.0, 6.0,  7.0,  8.0,  9.0, 10.0,
-        1.0,  2.0,  3.0,  4.0,  5.0, 6.0,  7.0,  8.0,  9.0, 10.0,
-        1.0,  2.0,  3.0,  4.0,  5.0, 6.0,  7.0,  8.0,  9.0, 10.0,
-        1.0,  2.0,  3.0,  4.0,  5.0, 6.0,  7.0,  8.0,  9.0, 10.0,
-        1.0,  2.0,  3.0,  4.0,  5.0, 6.0,  7.0,  8.0,  9.0, 10.0,
-        1.0,  2.0,  3.0,  4.0,  5.0, 6.0,  7.0,  8.0,  9.0, 10.0,
-        1.0,  2.0,  3.0,  4.0,  5.0, 6.0,  7.0,  8.0,  9.0, 10.0,
-        1.0,  2.0,  3.0,  4.0,  5.0, 6.0,  7.0,  8.0,  9.0, 10.0
+        1,1,1,2,3,4,5,6,7,8,9,9,
+        1,1,1,2,3,4,5,6,7,8,9,9,
+        1,1,1,2,3,4,5,6,7,8,9,9,
+        1,1,1,2,3,4,5,6,7,8,9,9,
+        1,1,1,2,3,4,5,6,7,8,9,9,
+        1,1,1,2,3,4,5,6,7,8,9,9,
+        1,1,1,2,3,4,5,6,7,8,9,9,
+        1,1,1,2,3,4,5,6,7,8,9,9,
+        1,1,1,2,3,4,5,6,7,8,9,9,
+        1,1,1,2,3,4,5,6,7,8,9,9,
+        1,1,1,1,1,1,1,1,1,1,1,1,
+        1,1,1,1,1,1,1,1,1,1,1,1
+        };
+    
+    */
+    /*
+    float kernel[KERNEL_LEN] = {
+        1.0,  5.0, -1.0,
+        2.0,  0.5, -2.0,
+        3.0,  0.5, -3.0
     };
 
-    printf("%f\n", kernel[0]);
+    float input[INPUT_LEN] = {
+        1,2,3,4,5,6,7,8,9,1,
+        1,2,3,4,5,6,7,8,9,1,
+        1,2,3,4,5,6,7,8,9,1,
+        1,2,3,4,5,6,7,8,9,1,
+        1,2,3,4,5,6,7,8,9,1,
+        1,2,3,4,5,6,7,8,9,1,
+        1,2,3,4,5,6,7,8,9,1,
+        1,2,3,4,5,6,7,8,9,1, 
+        1,2,3,4,5,6,7,8,9,1,
+        1,2,3,4,5,6,7,8,9,1     
+    };
+    */
+
+    float kernel[KERNEL_LEN] = {1.5};
+    
+    float input[INPUT_LEN] = {
+        1,2,3,4,5,6,7,8,
+        1,2,3,4,5,6,7,8,
+        1,2,3,4,5,6,7,8,
+        1,2,3,4,5,6,7,8,
+        1,2,3,4,5,6,7,8,
+        1,2,3,4,5,6,7,8,
+        1,2,3,4,5,6,7,8,
+        1,2,3,4,5,6,7,8
+    };
+    
     
     //uint16_t kernel_fx[KERNEL_LEN];
     uint64_t kernel_packed[PACKED_KERNEL_LEN];
     uint64_t input_packed[PACKED_INPUT_LEN];
+     // 1 packet = 4 values
+    uint64_t output_packed[PACKED_OUTPUT_LEN];
+    uint16_t* unpacked_view = (uint16_t*)output_packed;
     // Convert floats to fixed-point 8.8
     //for (int i = 0; i < KERNEL_LEN; i++) {
     //    kernel_fx[i] = float_to_fixed88(kernel[i]);
@@ -115,7 +159,9 @@ int main() {
     asm volatile("fence" ::: "memory");
     uint64_t result; 
 
-    SetKernelSize(2); // 5x5 kernel
+    //SetKernelSize(2); // 5x5 kernel
+    //SetKernelSize(1); // 3x3 kernel
+    SetKernelSize(0); // 1x1 kernel
 
     for (int i = 0; i < PACKED_KERNEL_LEN; i++) {
         KernelLoad((uint64_t)&kernel_packed[i], (uint64_t)i); // 2 = 5x5 kernel
@@ -131,10 +177,20 @@ int main() {
 
     doprint();
 
-    int tileType = 0; // Example tile type, can be adjusted as needed
+    int tileType = 3; // Example tile type, can be adjusted as needed
     printf("Starting computation... with tile type = %d\n",tileType);
-    result = doCompute((uint64_t)input_packed, tileType); // 0 = tileType, can be adjusted as needed
+    printf("Output address: 0x%lx\n", (uintptr_t)&output_packed[0]);
+    result = doCompute((uint64_t)&output_packed[0], tileType); // 0 = tileType, can be adjusted as needed
     
+    for (int i = 0; i < PACKED_OUTPUT_LEN; i++) {
+        uint16_t v0 = (output_packed[i] >> 0) & 0xFFFF;
+        uint16_t v1 = (output_packed[i] >> 16) & 0xFFFF;
+        uint16_t v2 = (output_packed[i] >> 32) & 0xFFFF;
+        uint16_t v3 = (output_packed[i] >> 48) & 0xFFFF;
+
+        printf("At addr 0x%lx, raw 16-bit values: 0x%04x 0x%04x 0x%04x 0x%04x\n", (uintptr_t)&output_packed[i], v0, v1, v2, v3);
+    }
+
     if (result == 1) {
         printf("Accelerator done loading kernel.\n");
     } else {

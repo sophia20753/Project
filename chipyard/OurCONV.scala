@@ -25,7 +25,7 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 		val kernel = Reg(Vec(25, FixedPoint(16.W, 8.BP)))
 		val kernelSize = Reg(UInt(2.W)) // Size of the kernel, 0: 1x1, 1: 3x3, 2: 5x5
 		
-		val input = Reg(Vec(100, FixedPoint(16.W, 8.BP)))
+		val input = Reg(Vec(144, FixedPoint(16.W, 8.BP)))
         
 		val busy = RegInit(VecInit(Seq.fill(125){false.B}))
 
@@ -227,7 +227,7 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 
 						when(valid) {
 							a(i)(j) := kernel(j.U * K + i.U)
-							b(i)(j) := input(x * K + y)
+							b(i)(j) := input(x * (N+2.U*pad) + y)
 						}.otherwise {
 							a(i)(j) := 0.F(16.W, 8.BP)
 							b(i)(j) := 0.F(16.W, 8.BP)
@@ -267,7 +267,7 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 					b(i)(j) := 0.F(16.W, 8.BP)
 				}
 			}
-            acc_buffer := sum
+            
 
             // After full kernel scan, increment input pos
             when(inCol === inColEnd) {
