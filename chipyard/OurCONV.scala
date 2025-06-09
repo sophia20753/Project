@@ -138,7 +138,7 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 			readResp := 0.U
 
 			state := sReadKernelReq
-			printf("[RoCC] Read  kernel command received\n")
+			//printf("[RoCC] Read  kernel command received\n")
 		}
 		when (state === sReadKernelReq) {
 			// Issue request
@@ -156,12 +156,12 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 			
 			when(io.mem.req.fire) {
 				readReq := readReq + 1.U 
-				printf(p"[RoCC] Sent kernel read: addr=0x${Hexadecimal(io.mem.req.bits.addr)}, tag=${io.mem.req.bits.tag}\n")
+				//printf(p"[RoCC] Sent kernel read: addr=0x${Hexadecimal(io.mem.req.bits.addr)}, tag=${io.mem.req.bits.tag}\n")
 			}
 
 			// Handle response
 			when(io.mem.resp.valid && canResp) {   
-				printf(p"[RoCC] Responded kernel read: tag=${io.mem.resp.bits.tag}, data=0x${Hexadecimal(io.mem.resp.bits.data)}\n")          
+				//printf(p"[RoCC] Responded kernel read: tag=${io.mem.resp.bits.tag}, data=0x${Hexadecimal(io.mem.resp.bits.data)}\n")          
 				val tag = io.mem.resp.bits.tag 
 				val data = io.mem.resp.bits.data 
 
@@ -173,14 +173,14 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 					when(flatIdx < kernelNumElements) {
 						val v = data(15+16*i,0+16*i).asSInt.asFixedPoint(8.BP)
 						kernel(flatIdx) := v
-						printf("[RoCC] Wrote kernel(%d) = 0x%x\n",flatIdx, kernel(flatIdx).asUInt)
+						//printf("[RoCC] Wrote kernel(%d) = 0x%x\n",flatIdx, kernel(flatIdx).asUInt)
 					}
 				}
 			}
 			// Check for all requests issued, all requests responded
 			when(!canIssue && !canResp) {
 				state := sLoadKernelDone 
-				printf("[RoCC] All kernel words loaded\n")
+				//printf("[RoCC] All kernel words loaded\n")
 			}
 		}
 		when (state === sLoadKernelDone) {
@@ -189,7 +189,7 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
                     io.resp.bits.rd := reg_rd 
                     io.resp.bits.data := 1.U 
                     state := sIdle 
-                    printf("[RoCC] Written data: %x to rd: %d success back\n", io.resp.bits.data, io.resp.bits.rd)
+                    //printf("[RoCC] Written data: %x to rd: %d success back\n", io.resp.bits.data, io.resp.bits.rd)
                 }.elsewhen(!reg_xd) {
                     // Something went wrong
                     state := sIdle
@@ -206,7 +206,7 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 			readResp := 0.U 
 
 			state := sReadInputReq
-			printf("[RoCC] Read input command received\n")
+			//printf("[RoCC] Read input command received\n")
 		}
 		when (state === sReadInputReq) {
 			// Issue request
@@ -224,12 +224,12 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 			
 			when(io.mem.req.fire) {
 				readReq := readReq + 1.U 
-				printf(p"[RoCC] Sent input read: addr=0x${Hexadecimal(io.mem.req.bits.addr)}, tag=${io.mem.req.bits.tag}\n")
+				//printf(p"[RoCC] Sent input read: addr=0x${Hexadecimal(io.mem.req.bits.addr)}, tag=${io.mem.req.bits.tag}\n")
 			}
 
 			// Handle response
 			when(io.mem.resp.valid && canResp) {   
-				printf(p"[RoCC] Responded kernel read: tag=${io.mem.resp.bits.tag}, data=0x${Hexadecimal(io.mem.resp.bits.data)}\n")          
+				//printf(p"[RoCC] Responded kernel read: tag=${io.mem.resp.bits.tag}, data=0x${Hexadecimal(io.mem.resp.bits.data)}\n")          
 				val tag = io.mem.resp.bits.tag 
 				val data = io.mem.resp.bits.data 
 
@@ -241,14 +241,14 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 					when(flatIdx < inputNumElements) {
 						val v = data(15+16*i,0+16*i).asSInt.asFixedPoint(8.BP)
 						input(flatIdx) := v
-						printf("[RoCC] Wrote kernel(%d) = 0x%x\n",flatIdx, input(flatIdx).asUInt)
+						//printf("[RoCC] Wrote kernel(%d) = 0x%x\n",flatIdx, input(flatIdx).asUInt)
 					}
 				}
 			}
 			// Check for all requests issued, all requests responded
 			when(!canIssue && !canResp) {
 				state := sLoadInputDone 
-				printf("[RoCC] All input words loaded\n")
+				//printf("[RoCC] All input words loaded\n")
 			}
 		}
 		when (state === sLoadInputDone) {
@@ -257,7 +257,7 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
                     io.resp.bits.rd := reg_rd 
                     io.resp.bits.data := 1.U 
                     state := sIdle 
-                    printf("[RoCC] Written data: %x to rd: %d success back\n", io.resp.bits.data, io.resp.bits.rd)
+                    //printf("[RoCC] Written data: %x to rd: %d success back\n", io.resp.bits.data, io.resp.bits.rd)
                 }.elsewhen(!reg_xd) {
                     // Something went wrong
                     state := sIdle
@@ -333,7 +333,7 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 			outIdx := 0.U
 			finishedAll := false.B
 			state := sSetup
-			printf(p"Starting convolution with tile type: ${rs2}\n")	
+			//printf(p"Starting convolution with tile type: ${rs2}\n")	
 		}
 
 		when (state === sSetup) {
@@ -390,7 +390,7 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 							b(i)(j) := 0.F(16.W, 8.BP)
 						}
 						
-						printf(p"kerCol = ${i.U}, kerRow = ${j.U}, inCol = $inCol, inRow = $inRow, outIdx: $outIdx, x = $x, y = $y, valid = $valid\n")
+						//printf(p"kerCol = ${i.U}, kerRow = ${j.U}, inCol = $inCol, inRow = $inRow, outIdx: $outIdx, x = $x, y = $y, valid = $valid\n")
 					}
 				}
             }
@@ -407,7 +407,7 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
             }
             state := sAcc2
 
-            printf(p"Cycle: ${count}, state: ${state}, a = ${a.asUInt}, b = ${b.asUInt}\n")
+            //printf(p"Cycle: ${count}, state: ${state}, a = ${a.asUInt}, b = ${b.asUInt}\n")
 		}
 
 		when (state === sAcc2) {
@@ -439,7 +439,7 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
                 inCol := inCol + 1.U
             }
 
-            printf(p"Cycle: ${count}, state: ${state}, acc = ${acc.asUInt}\n")
+            //printf(p"Cycle: ${count}, state: ${state}, acc = ${acc.asUInt}\n")
             
             state := writeResult
 		}
@@ -469,15 +469,15 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
             }.otherwise {
                 state := sLoadFrame // Load the next frame
             }
-            printf(p"Cycle: ${count}, state: ${state}, inCol = ${inCol}, inRow = ${inRow}, outIdx: ${outIdx}, " + 
-            p"acc_buffer: ${acc_buffer.asUInt}, lastOutputPixel = ${lastOutputPixel}, finishedAll = ${finishedAll}\n")
+            //printf(p"Cycle: ${count}, state: ${state}, inCol = ${inCol}, inRow = ${inRow}, outIdx: ${outIdx}, " + 
+            //p"acc_buffer: ${acc_buffer.asUInt}, lastOutputPixel = ${lastOutputPixel}, finishedAll = ${finishedAll}\n")
 		}
 
 		// ********************************************
 		// From convDoWrite.scala
 		when (state === sWriteReq) {
 			when(writeIdx < reg_numElements) {
-                    printf(p"[RoCC][sWriteReq] writeIdx = $writeIdx, reg_numElements = $reg_numElements\n")
+                    //printf(p"[RoCC][sWriteReq] writeIdx = $writeIdx, reg_numElements = $reg_numElements\n")
                     io.mem.req.valid := true.B 
                     io.mem.req.bits.addr := reg_baseAddr + (writeIdx << 3)
                     io.mem.req.bits.tag := writeIdx + 1.U // must be non-zero
@@ -510,11 +510,11 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
                     io.mem.req.bits.data := data
 
                     when(io.mem.req.fire) {
-                        printf(p"[RoCC] Sent write: addr=0x${Hexadecimal(io.mem.req.bits.addr)}, tag=${io.mem.req.bits.tag}, data=0x${Hexadecimal(io.mem.req.bits.data)}\n")
+                        //printf(p"[RoCC] Sent write: addr=0x${Hexadecimal(io.mem.req.bits.addr)}, tag=${io.mem.req.bits.tag}, data=0x${Hexadecimal(io.mem.req.bits.data)}\n")
                         writeIdx := writeIdx + 1.U 
                         when(writeIdx + 1.U === reg_numElements) {
                             state := sWaitWriteResp 
-                            printf("[RoCC] All write requests issued, waiting for responses\n")
+                            //printf("[RoCC] All write requests issued, waiting for responses\n")
                         }
                     }
                 }
@@ -524,7 +524,7 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 			when(io.mem.resp.valid) { 
 				when(io.mem.resp.bits.tag === reg_numElements) {
 					state := sDone
-					printf("[RoCC] All write responses received\n")
+					//printf("[RoCC] All write responses received\n")
 				}
 			}
 		}
@@ -535,7 +535,7 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 				io.resp.bits.rd := reg_rd 
 				io.resp.bits.data := overflowBits
 				state := sIdle
-				printf(p"[RoCC] Written data: ${io.resp.bits.data} to rd: ${io.resp.bits.rd} success back\n")
+				//printf(p"[RoCC] Written data: ${io.resp.bits.data} to rd: ${io.resp.bits.rd} success back\n")
 			}.elsewhen(!reg_xd) {
 				state := sIdle
 			}
