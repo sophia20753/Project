@@ -18,29 +18,34 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 	with HasCoreParameters {
 		
 		// FSM states
-		val sIdle :: sLoadKernel :: sLoadInput :: sSetup :: sLoadFrame :: sAcc1 :: sAcc2 :: writeResult :: sWriteReq :: sWaitWriteResp :: sReadKernelReq :: sLoadKernelDone :: sDone :: Nil = Enum(13)
+		val sIdle :: sLoadKernel :: sLoadInput :: sSetup :: sLoadFrame :: sAcc1 :: sAcc2 :: writeResult :: sWriteReq :: sWaitWriteResp :: sReadKernelReq :: sLoadKernelDone :: sReadInputReq :: sLoadInputDone :: sDone :: Nil = Enum(15)
 		val state = RegInit(sIdle)
 		val N = 8.U // Output size, 8 for 8x8 output
 
 		val kernel = Reg(Vec(25, FixedPoint(16.W, 8.BP)))
-		val kerRow = RegInit(0.U(3.W))
-        val kerCol = RegInit(0.U(3.W))
 		val kernelSize = Reg(UInt(2.W)) // Size of the kernel, 0: 1x1, 1: 3x3, 2: 5x5
+
 		val reg_kernelBaseAddr = Reg(UInt(xLen.W))
-		val reg_kernelDim = RegInit(0.U(3.W))
+		val reg_kernelDim = RegInit(5.U(3.W))
 		val kernelNumElements = reg_kernelDim * reg_kernelDim
+
+		val reg_inputBaseAddr = Reg(UInt(xLen.W)) // Base address for input
+		val reg_inputDim = N + reg_kernelDim - 1.U
+		val inputNumElements = reg_inputDim * reg_inputDim
+		
+		
 		
 		val input = Reg(Vec(144, FixedPoint(16.W, 8.BP)))
         
-		val busy = RegInit(VecInit(Seq.fill(125){false.B}))
+		//val busy = RegInit(VecInit(Seq.fill(125){false.B}))
 
         val cmd = Queue(io.cmd)
         val funct = cmd.bits.inst.funct
         
         val doPrint = funct === 0.U
-        val loadIsInput = funct === 1.U
+        
 		val doLoadKernel = (funct === 2.U)
-        val doLoad = funct === 1.U
+        val doLoadInput = funct === 1.U
         val doCompute = funct === 3.U
         val memRespTag = io.mem.resp.bits.tag
 
@@ -49,7 +54,9 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 		// From doKernelLoad.scala
 		val readReq = RegInit(0.U(8.W)) // tracks number of packed 64-bit words read requests sent
         val readResp = RegInit(0.U(8.W)) // tracks number of packed 64-bit words read requests responded 
-        val totalReadReq = ((kernelNumElements + 3.U) >> 2).asUInt
+        val totalKernelReadReq = ((kernelNumElements + 3.U) >> 2).asUInt
+
+		val totalInputReadReq = ((inputNumElements + 3.U) >> 2).asUInt // total number of packed 64-bit words read requests for input
 		// *************************************
 
 		// *************************************
@@ -135,12 +142,12 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 			readResp := 0.U
 
 			state := sReadKernelReq
-			printf("[RoCC] Read command received\n")
+			printf("[RoCC] Read  kernel command received\n")
 		}
 		when (state === sReadKernelReq) {
 			// Issue request
-			val canIssue = readReq < totalReadReq
-			val canResp = readResp < totalReadReq
+			val canIssue = readReq < totalKernelReadReq
+			val canResp = readResp < totalKernelReadReq
 			io.mem.req.valid := canIssue 
 			io.mem.req.bits.addr := reg_kernelBaseAddr + (readReq << 3)
 			io.mem.req.bits.tag := readReq + 1.U // must be non-zero 
@@ -181,6 +188,74 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 			}
 		}
 		when (state === sLoadKernelDone) {
+			when(reg_xd && io.resp.ready) {
+                    io.resp.valid := true.B 
+                    io.resp.bits.rd := reg_rd 
+                    io.resp.bits.data := 1.U 
+                    state := sIdle 
+                    printf("[RoCC] Written data: %x to rd: %d success back\n", io.resp.bits.data, io.resp.bits.rd)
+                }.elsewhen(!reg_xd) {
+                    // Something went wrong
+                    state := sIdle
+                }
+		}
+
+		when (cmd.fire && state === sIdle && doLoadInput) {
+			reg_rd := cmd.bits.inst.rd 
+			reg_xd := cmd.bits.inst.xd 
+			reg_dprv := cmd.bits.status.dprv 
+			reg_inputBaseAddr := cmd.bits.rs1 
+			reg_inputTileType := cmd.bits.rs2 // Tile type for input
+			readReq := 0.U 
+			readResp := 0.U 
+
+			state := sReadInputReq
+			printf("[RoCC] Read input command received\n")
+		}
+		when (state === sReadInputReq) {
+			// Issue request
+			val canIssue = readReq < totalInputReadReq
+			val canResp = readResp < totalInputReadReq
+			io.mem.req.valid := canIssue 
+			io.mem.req.bits.addr := reg_inputBaseAddr + (readReq << 3)
+			io.mem.req.bits.tag := readReq + 1.U // must be non-zero 
+			io.mem.req.bits.cmd := M_XRD 
+			io.mem.req.bits.size := log2Ceil(xLen/8).U 
+			io.mem.req.bits.signed := false.B // change this
+			io.mem.req.bits.data := 0.U // only for writes
+			io.mem.req.bits.phys := false.B 
+			io.mem.req.bits.dprv := reg_dprv 
+			
+			when(io.mem.req.fire) {
+				readReq := readReq + 1.U 
+				printf(p"[RoCC] Sent input read: addr=0x${Hexadecimal(io.mem.req.bits.addr)}, tag=${io.mem.req.bits.tag}\n")
+			}
+
+			// Handle response
+			when(io.mem.resp.valid && canResp) {   
+				printf(p"[RoCC] Responded kernel read: tag=${io.mem.resp.bits.tag}, data=0x${Hexadecimal(io.mem.resp.bits.data)}\n")          
+				val tag = io.mem.resp.bits.tag 
+				val data = io.mem.resp.bits.data 
+
+				readResp := readResp + 1.U 
+
+				// Unpack data into kernel vector
+				for (i <- 0 until 4) {
+					val flatIdx = ((tag - 1.U) << 2) + i.U 
+					when(flatIdx < inputNumElements) {
+						val v = data(15+16*i,0+16*i).asSInt.asFixedPoint(8.BP)
+						input(flatIdx) := v
+						printf("[RoCC] Wrote kernel(%d) = 0x%x\n",flatIdx, input(flatIdx).asUInt)
+					}
+				}
+			}
+			// Check for all requests issued, all requests responded
+			when(!canIssue && !canResp) {
+				state := sLoadInputDone 
+				printf("[RoCC] All input words loaded\n")
+			}
+		}
+		when (state === sLoadInputDone) {
 			when(reg_xd && io.resp.ready) {
                     io.resp.valid := true.B 
                     io.resp.bits.rd := reg_rd 
@@ -480,10 +555,6 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 		// Computation end
 		//********************************************
 		
-
-		when (doLoad && loadIsInput && cmd.fire) {
-			state := sLoadInput // Input load
-		}
 		
 
 		when (doPrint && cmd.fire) {
@@ -546,29 +617,12 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 		}
 
 		// Memory req/resp handling during load states
-
-		when (io.mem.resp.valid && state === sLoadInput) {
-			printf(p"MEM RESP: tag=${memRespTag} data=${io.mem.resp.bits.data}\n")
-			input(memRespTag * 4.U) := io.mem.resp.bits.data(63, 48).asSInt.asFixedPoint(8.BP)
-			input(memRespTag * 4.U + 1.U) :=io.mem.resp.bits.data(47, 32).asSInt.asFixedPoint(8.BP)
-			input(memRespTag * 4.U + 2.U) := io.mem.resp.bits.data(31, 16).asSInt.asFixedPoint(8.BP)
-			input(memRespTag * 4.U + 3.U) := io.mem.resp.bits.data(15, 0).asSInt.asFixedPoint(8.BP)
-			busy(memRespTag + 25.U) := false.B // Optionally clear busy for the first index
-			state := sIdle
-		}
-        
-        when (io.mem.req.fire) {
-			when (state === sLoadInput) {
-				busy(rs2+25.U) := true.B
-			}
-        }
-
         val doResp = cmd.bits.inst.xd
-        val stallReg = busy(rs2)
-        val stallLoad = doLoad && !io.mem.req.ready
+        //val stallReg = busy(rs2)
+        val stallLoad = !io.mem.req.ready
         val stallResp = doResp && !io.resp.ready
 
-        cmd.ready := !stallReg && !stallLoad && !stallResp && state === sIdle
+        cmd.ready := !stallLoad && !stallResp && state === sIdle
 
         // PROC RESPONSE INTERFACE
         when(state =/= sDone && state =/= sLoadKernelDone) {
@@ -578,23 +632,13 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
         //io.resp.bits.rd := cmd.bits.inst.rd
         //io.resp.bits.data := 1.U
 
-        io.busy := cmd.valid || busy.reduce(_ || _) 
+        io.busy := cmd.valid
         io.interrupt := false.B
         
 
         // Memory request interface
 		
-		when (doLoad && loadIsInput) {
-			io.mem.req.valid := cmd.valid && !stallReg && !stallResp
-			io.mem.req.bits.addr := rs1
-			io.mem.req.bits.tag := rs2
-			io.mem.req.bits.cmd := M_XRD
-			io.mem.req.bits.size := log2Ceil(8).U
-			io.mem.req.bits.signed := false.B
-			io.mem.req.bits.data := 0.U
-			io.mem.req.bits.phys := false.B
-			io.mem.req.bits.dprv := cmd.bits.status.dprv
-		}.elsewhen (state =/= sWriteReq && state =/= sReadKernelReq) {
+		when (state =/= sWriteReq && state =/= sReadKernelReq && state =/= sReadInputReq) {
 			io.mem.req.valid := false.B 
             io.mem.req.bits.addr := 0.U
             io.mem.req.bits.tag := 0.U

@@ -36,10 +36,6 @@ static inline void doprint() {
     return;
 }
 
-static inline void SetKernelSize(uint64_t size) {
-    ROCC_INSTRUCTION_SS(CUSTOM_OPCODE, size, 0, FUNCT7_KERNELSIZE);
-    return;
-}
 
 static inline uint64_t doLoadKernel(uint64_t kernel_ptr, uint64_t kernel_size) {
     uint64_t result;
@@ -50,9 +46,13 @@ static inline uint64_t doLoadKernel(uint64_t kernel_ptr, uint64_t kernel_size) {
     return result;
 }
 
-static inline void InputLoad(uint64_t ptr, uint64_t addr) {
-    ROCC_INSTRUCTION_SS(CUSTOM_OPCODE, ptr, addr, FUNCT7_INPUTLOAD);
-    return;
+static inline uint64_t InputLoad(uint64_t input_ptr, uint64_t X) {
+    uint64_t result;
+    // ROCC_INSTRUCTION_DSS(opcode, rd, rs1, rs2, funct7)
+    // rs1 = kernel address
+    // rs2 = kernel size
+    ROCC_INSTRUCTION_DSS(CUSTOM_OPCODE, result, input_ptr, 0, FUNCT7_DOLOADKERNEL);
+    return result;
 }
 
 static inline uint64_t doCompute(uint64_t ptr, uint64_t tileType) {
@@ -175,9 +175,9 @@ int main() {
         }
     }
 
-    //printf("Packed kernel data:\n");
+    printf("Packed kernel data:\n");
     for (int i = 0; i < num_words; i++) {
-        //printf("Word%d at addr 0x%lx: 0x%016lx\n", i, (uintptr_t)&packed_kernel_data[i], packed_kernel_data[i]);
+        printf("Word%d at addr 0x%lx: 0x%016lx\n", i, (uintptr_t)&packed_kernel_data[i], packed_kernel_data[i]);
     }
     int pad = 0;
     if (KERNEL_SIZE == 1) {
@@ -194,41 +194,47 @@ int main() {
     uint64_t output_packed[PACKED_OUTPUT_LEN];
     uint16_t* unpacked_view = (uint16_t*)output_packed;
 
-    //printf("Input address: 0x%lx\n", (uintptr_t)input_packed);
+    printf("Input address: 0x%lx\n", (uintptr_t)input_packed);
 
+    for (int w = 0; w < PACKED_INPUT_LEN; w++) {
+        input_packed[w] = 0;
+    }
+
+    idx = 0;
+    for (int r = 0; r < INPUT_SIZE; r++) {
+        for (int c = 0; c < INPUT_SIZE; c++) {
+            int word_idx = idx / 4;
+            int offset = (idx % 4) * 16;
+            input_packed[word_idx] |= ((uint64_t)float_to_fixed88(input[r*INPUT_SIZE+c]) << offset);
+            idx++;
+        }
+    }
+    printf("Packed input data:\n");
     for (int i = 0; i < PACKED_INPUT_LEN; i++) {
-        input_packed[i] = 0;
-        input_packed[i] |= (uint64_t)float_to_fixed88(input[4*i]) << 48;
-        input_packed[i] |= (uint64_t)float_to_fixed88(input[4*i + 1]) << 32;
-        input_packed[i] |= (uint64_t)float_to_fixed88(input[4*i + 2]) << 16;
-        input_packed[i] |= (uint64_t)float_to_fixed88(input[4*i + 3]); // First 16 bits
+        printf("Word%d at addr 0x%lx: 0x%016lx\n", i, (uintptr_t)&input_packed[i], input_packed[i]);
     }
 
     printf("Start\n");
     int start = rdcycle();
+    printf("Load kernel...\n");
     uint64_t success = doLoadKernel((uint64_t)&packed_kernel_data[0], pad);
-    //printf("RoCC instruction returned: %lu\n", success);
+    printf("RoCC instruction returned: %lu\n", success);
     
 
     asm volatile("fence" ::: "memory");
     uint64_t result; 
 
-    //SetKernelSize(2); // 5x5 kernel
-    //SetKernelSize(1); // 3x3 kernel
-    //SetKernelSize(0); // 1x1 kernel
 
-
-    for (int i = 0; i < PACKED_INPUT_LEN; i++) {
-        InputLoad((uint64_t)&input_packed[i], (uint64_t)i); // 2 = 5x5 kernel
-        //printf("Sending input %d, %d, %d, %d: 0x%0.16lx\n", 4*i,4*i+1,4*i+2,4*i+3, input_packed[i]);
-    }
-    //printf("Kernel Loaded!\n");
+    printf("Load input...\n");
+    success = InputLoad((uint64_t)&input_packed[0], 0); // 0 = address of first element, can be adjusted as needed
+    printf("RoCC instruction returned: %lu\n", success);
+    printf("Input Loaded!\n");
 
     doprint();
 
     int tileType = 3; // Example tile type, can be adjusted as needed
-    //printf("Starting computation... with tile type = %d\n",tileType);
-    //printf("Output address: 0x%lx\n", (uintptr_t)&output_packed[0]);
+    printf("Starting computation... with tile type = %d\n",tileType);
+    printf("Output address: 0x%lx\n", (uintptr_t)&output_packed[0]);
     result = doCompute((uint64_t)&output_packed[0], tileType); // 0 = tileType, can be adjusted as needed
     int end = rdcycle();
     printf("Execution took %lu cycles\n",end-start);
