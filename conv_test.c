@@ -6,6 +6,7 @@
 #define N8 8
 #define N10 10
 #define N12 12
+#define N32 32
 
 
 #define K5 5
@@ -80,6 +81,50 @@ void conv125(float input[N12][N12], float kernel[K5][K5], float output[N12][N12]
     }
 }
 
+void conv323(float input[N32][N32], float kernel[K3][K3], float output[N32][N32]) {
+    int pad = K3 / 2;
+
+    for (int i = 0; i < N32; i++) {
+        for (int j = 0; j < N32; j++) {
+            float sum = 0.0;
+            for (int m = 0; m < K3; m++) {
+                for (int n = 0; n < K3; n++) {
+                    int x = i + m - pad;
+                    int y = j + n - pad;
+                    if (x >= 0 && x < N32 && y >= 0 && y < N32) {
+                        //printf("i = %d, j = %d, m = %d, n = %d, x = %d, y = %d | %f * %f\n", i, j, m, n, x, y, kernel[m][n], input[x][y]);
+                        sum += kernel[m][n] * input[x][y];
+                    }
+                }
+            }
+            output[i][j] = sum;
+            //printf("Sum = %f\n", sum);
+        }
+    }
+}
+
+void conv325(float input[N32][N32], float kernel[K5][K5], float output[N32][N32]) {
+    int pad = K5 / 2;
+
+    for (int i = 0; i < N32; i++) {
+        for (int j = 0; j < N32; j++) {
+            float sum = 0.0;
+            for (int m = 0; m < K5; m++) {
+                for (int n = 0; n < K5; n++) {
+                    int x = i + m - pad;
+                    int y = j + n - pad;
+                    if (x >= 0 && x < N32 && y >= 0 && y < N32) {
+                        //printf("i = %d, j = %d, m = %d, n = %d, x = %d, y = %d | %f * %f\n", i, j, m, n, x, y, kernel[m][n], input[x][y]);
+                        sum += kernel[m][n] * input[x][y];
+                    }
+                }
+            }
+            output[i][j] = sum;
+            //printf("Sum = %f\n", sum);
+        }
+    }
+}
+
 int main() {
 
     float input8[N8][N8] = {
@@ -120,6 +165,8 @@ int main() {
         {1,1,1,1,1,1,1,1,1,1,1,1},
         {1,1,1,1,1,1,1,1,1,1,1,1}
     };
+
+    float input32[N32][N32];
     
     // 3x3 kernel (e.g., simple edge detection kernel)
     float kernel3[K3][K3] = {
@@ -150,10 +197,24 @@ int main() {
 
     float output125[N12][N12];
 
+    float output323[N32][N32];
+
+    float output325[N32][N32];
+
+    // Setup input
+
+    for (int i = 0; i < N32; i++) {
+        for (int j = 0; j < N32; j++) {
+            input32[i][j] = (float)((i*N32 + j) % 4); // Example input data
+        }
+    }
+
     // Perform 2D convolution
     conv81(input8, kernel1, output81);
     conv103(input10, kernel3, output103);
     conv125(input12, kernel5, output125);
+    conv323(input32, kernel3, output323);
+    conv325(input32, kernel5, output325);
 
     // Print output matrix
 
@@ -185,6 +246,46 @@ int main() {
             printf("%04x  ", (uint16_t)fx);
         }
         printf("\n");
+    }
+
+    printf("Output 323:\n");
+    for (int i = 0; i < N32; i++) {
+        for (int j = 0; j < N32; j++) {
+            printf("%6.0f  ", output323[i][j]);
+        }
+        printf("\n");
+    }
+
+    printf("Output 323 (8x8 tiles):\n");
+    for (int i = 0; i < N32/8; i++) {
+        for (int j = 0; j < N32/8; j++) {
+            printf("Tile i: %d, j: %d\n", i, j);
+            for (int x = i*8; x < (i+1)*8; x++) {
+                for (int y = j*8; y < (j+1)*8; y++) {
+                    int16_t fx = (int16_t)(output323[x][y] * 256.0f);
+                    printf("%04x  ", (uint16_t)fx);
+                }
+                printf("\n");
+            }
+            printf("\n");
+        }
+    }
+
+
+
+    printf("Output 325 (8x8 tiles):\n");
+    for (int i = 0; i < N32/8; i++) {
+        for (int j = 0; j < N32/8; j++) {
+            printf("Tile i: %d, j: %d\n", i, j);
+            for (int x = i*8; x < (i+1)*8; x++) {
+                for (int y = j*8; y < (j+1)*8; y++) {
+                    int16_t fx = (int16_t)(output325[x][y] * 256.0f);
+                    printf("%04x  ", (uint16_t)fx);
+                }
+                printf("\n");
+            }
+            printf("\n");
+        }
     }
 
 
