@@ -121,15 +121,33 @@ int main() {
     float output_tile[OUTPUT_TILE_LEN];
     uint16_t output_tile_f88[OUTPUT_TILE_LEN];
     uint64_t output_tile_packed[PACKED_OUTPUT_TILE_LEN];
+    int overflow[OUTPUT_LEN];
     
     uint64_t packed_kernel_data[PACKED_KERNEL_LEN];
+
+    int tileType = 0;
+    int rowStart = 0;
+    int rowEnd = 0;
+    int colStart = 0;
+    int colEnd = 0;
+    int outRowStart = 0;
+    int outRowEnd = 0;
+    int outColStart = 0;
+    int outColEnd = 0;
+    int count = 0;
+    uint64_t result;
+
 
     for (int i = 0; i < INPUT_LEN; i++) {
         input[i] = (float)(i % 32); // Example input data
     }
     for (int i = 0; i < OUTPUT_LEN; i++) {
         output[i] = 0; // Example input tile data
+        overflow[i] = 0;
     }
+
+    printf("Start\n");
+    int start = rdcycle();
     
     // kernel processing
     for (int w = 0; w < PACKED_KERNEL_LEN; w++) {
@@ -146,8 +164,8 @@ int main() {
         }
     }
 
-    printf("Kernel size: %d x %d\n", KERNEL_SIZE, KERNEL_SIZE);
-    printf("input tile size: %d x %d\n", INPUT_TILE_SIZE, INPUT_TILE_SIZE);
+    //printf("Kernel size: %d x %d\n", KERNEL_SIZE, KERNEL_SIZE);
+    //printf("input tile size: %d x %d\n", INPUT_TILE_SIZE, INPUT_TILE_SIZE);
 
     int pad = 0;
     if (KERNEL_SIZE == 1) {
@@ -161,13 +179,13 @@ int main() {
         exit(1);
     }
 
-    printf("Load kernel...\n");
+    //printf("Load kernel...\n");
     uint64_t success = doLoadKernel((uint64_t)&packed_kernel_data[0], pad);
-    printf("RoCC instruction returned: %lu\n", success);
+    //printf("RoCC instruction returned: %lu\n", success);
     
 
     // input tile handling
-    int tileType = 0;
+    
 
     //for (int i = 0; i < INPUT_SIZE; i++) {
     //    for (int j = 0; j < INPUT_SIZE; j++) {
@@ -175,24 +193,16 @@ int main() {
     //    }
     //    printf("\n");
     //}
-    printf("Input address: 0x%lx\n", (uintptr_t)&input[0]);
+    //printf("Input address: 0x%lx\n", (uintptr_t)&input[0]);
 
-    int rowStart = 0;
-    int rowEnd = 0;
-    int colStart = 0;
-    int colEnd = 0;
-    int outRowStart = 0;
-    int outRowEnd = 0;
-    int outColStart = 0;
-    int outColEnd = 0;
-    int count = 0;
-
+    
 
     asm volatile("fence" ::: "memory");
-    uint64_t result; 
+     
 
     for (int i = 0; i < INPUT_SIZE/OUTPUT_TILE_SIZE; i++) {
         for (int j = 0; j < INPUT_SIZE/OUTPUT_TILE_SIZE; j++) {
+            int aStart = rdcycle();
             if (i == 0 && j == 0) {
                 tileType = TOP_LEFT; // Top-left corner
 
@@ -281,7 +291,7 @@ int main() {
                 outRowStart = i * OUTPUT_TILE_SIZE;
                 outColStart = j * OUTPUT_TILE_SIZE;
             }
-            printf("Tile type: %d, i: %d, j: %d, rowStart: %d, rowEnd: %d, colStart: %d, colEnd: %d\n", tileType, i, j, rowStart, rowEnd, colStart, colEnd);
+            //printf("Tile type: %d, i: %d, j: %d, rowStart: %d, rowEnd: %d, colStart: %d, colEnd: %d\n", tileType, i, j, rowStart, rowEnd, colStart, colEnd);
             count = 0;
             int tx = 0, ty = 0;
             for (int x = rowStart; x <= rowEnd; x++) {
@@ -342,34 +352,34 @@ int main() {
                 output_tile[i * 4 + 2] = fixed88_to_float(v2);
                 output_tile[i * 4 + 3] = fixed88_to_float(v3);
             }
-
             for (int tx = 0; tx < OUTPUT_TILE_SIZE; tx++) {
                 for (int ty = 0; ty < OUTPUT_TILE_SIZE; ty++) {
                     output[(outRowStart + tx) * OUTPUT_SIZE + (outColStart + ty)] = output_tile[tx * OUTPUT_TILE_SIZE + ty];
-                    //printf("0x%04x ", output_tile_f88[tx * OUTPUT_TILE_SIZE + ty]);
+                    overflow[(outRowStart + tx) * OUTPUT_SIZE + (outColStart + ty)] = (result >> (tx * OUTPUT_TILE_SIZE + ty)) & 1;
                 }
-                //printf("\n");
-            }
-            printf("Overflowed indices: ");
-            int ovflx = 0, ovfly = 0;
-            for (int i = 0; i < OUTPUT_SIZE * OUTPUT_SIZE; i++) {
-                if ((result >> i) & 1) {
-                    ovflx = i / OUTPUT_TILE_SIZE;
-                    ovfly = i % OUTPUT_TILE_SIZE;
-                    printf("flat: %d, x: %d, y: %d || ", i, ovflx, ovfly);
-                }
-            }
-            printf("\n");
-            
+            }  
+            int aEnd = rdcycle();
+            printf("Tile [%d,%d] execution took %lu cycles\n",i,j,aEnd-aStart);
         }
     }
 
+    int end = rdcycle();
+    printf("Done\n");
+    printf("Convolution execution took %lu cycles\n",end-start);
+
+    //for (int i = 0; i < OUTPUT_SIZE; i++) {
+    //    for (int j = 0; j < OUTPUT_SIZE; j++) {
+    //        int16_t fx = (int16_t)(output[i * OUTPUT_SIZE + j] * 256.0f);
+    //        int integer = fx >> 8;
+    //        int fraction = fx & 0xFF;
+    //        printf("%d.%02d ", integer, fraction);
+    //    }
+    //printf("\n");
+    //}
+
     for (int i = 0; i < OUTPUT_SIZE; i++) {
         for (int j = 0; j < OUTPUT_SIZE; j++) {
-            int16_t fx = (int16_t)(output[i * OUTPUT_SIZE + j] * 256.0f);
-            int integer = fx >> 8;
-            int fraction = fx & 0xFF;
-            printf("%d.%02d ", integer, fraction);
+            printf("%d ", overflow[i*OUTPUT_SIZE+j]);
         }
     printf("\n");
     }
