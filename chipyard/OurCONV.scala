@@ -18,7 +18,7 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 	with HasCoreParameters {
 		
 		// FSM states
-		val sIdle :: sLoadKernel :: sLoadInput :: sSetup :: sLoadFrame :: sAcc1 :: sAcc2 :: writeResult :: sWriteReq :: sWaitWriteResp :: sReadKernelReq :: sLoadKernelDone :: sReadInputReq :: sLoadInputDone :: sDone :: Nil = Enum(15)
+		val sIdle :: sSetup :: sLoadFrame :: sAcc1 :: sAcc2 :: writeResult :: sWriteReq :: sWaitWriteResp :: sReadKernelReq :: sLoadKernelDone :: sReadInputReq :: sLoadInputDone :: sDone :: Nil = Enum(13)
 		val state = RegInit(sIdle)
 		val N = 8.U // Output size, 8 for 8x8 output
 
@@ -33,16 +33,12 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 		val reg_inputDim = N + reg_kernelDim - 1.U
 		val inputNumElements = reg_inputDim * reg_inputDim
 		
-		
-		
 		val input = Reg(Vec(144, FixedPoint(16.W, 8.BP)))
-        
-		//val busy = RegInit(VecInit(Seq.fill(125){false.B}))
 
         val cmd = Queue(io.cmd)
         val funct = cmd.bits.inst.funct
         
-        val doPrint = funct === 0.U
+        
         
 		val doLoadKernel = (funct === 2.U)
         val doLoadInput = funct === 1.U
@@ -343,8 +339,7 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 		when (state === sSetup) {
 			inRow := inRowStart
 			inCol := inColStart
-			//done := false.B
-			state := sLoadFrame // Load the first frame
+			state := sLoadFrame 
 		}
 
 		when (state === sLoadFrame) {
@@ -467,12 +462,10 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 
 			// *********************************************
 
-			//result(outRow)(outCol) := acc_buffer //make changes here !!! truncate
             acc_buffer := 0.F(32.W, 8.BP)
             outIdx := outIdx + 1.U
             when(finishedAll) {
                 state := sWriteReq
-				//done := true.B // Mark the operation as done
             }.otherwise {
                 state := sLoadFrame // Load the next frame
             }
@@ -528,8 +521,7 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 		}
 
 		when (state === sWaitWriteResp) {
-			when(io.mem.resp.valid) {
-				//val tag = io.mem.resp.bits.tag 
+			when(io.mem.resp.valid) { 
 				when(io.mem.resp.bits.tag === reg_numElements) {
 					state := sDone
 					printf("[RoCC] All write responses received\n")
@@ -557,80 +549,20 @@ class OurCONVModuleImp(outer: OurCONV)(implicit p: Parameters) extends LazyRoCCM
 		
 		
 
-		when (doPrint && cmd.fire) {
-			printf(p"Kernel size set to: ${kernelSize}\n")
-
-			printf(p"kernel0  = ${kernel(0).asUInt}\n")
-			printf(p"kernel1  = ${kernel(1).asUInt}\n")
-			printf(p"kernel2  = ${kernel(2).asUInt}\n")
-			printf(p"kernel3  = ${kernel(3).asUInt}\n")
-			printf(p"kernel4  = ${kernel(4).asUInt}\n")
-			printf(p"kernel5  = ${kernel(5).asUInt}\n")
-			printf(p"kernel6  = ${kernel(6).asUInt}\n")
-			printf(p"kernel7  = ${kernel(7).asUInt}\n")
-			printf(p"kernel8  = ${kernel(8).asUInt}\n")
-			printf(p"kernel9  = ${kernel(9).asUInt}\n")
-			printf(p"kernel10 = ${kernel(10).asUInt}\n")
-			printf(p"kernel11 = ${kernel(11).asUInt}\n")
-			printf(p"kernel12 = ${kernel(12).asUInt}\n")
-			printf(p"kernel13 = ${kernel(13).asUInt}\n")
-			printf(p"kernel14 = ${kernel(14).asUInt}\n")
-			printf(p"kernel15 = ${kernel(15).asUInt}\n")
-			printf(p"kernel16 = ${kernel(16).asUInt}\n")
-			printf(p"kernel17 = ${kernel(17).asUInt}\n")
-			printf(p"kernel18 = ${kernel(18).asUInt}\n")
-			printf(p"kernel19 = ${kernel(19).asUInt}\n")
-			printf(p"kernel20 = ${kernel(20).asUInt}\n")
-			printf(p"kernel21 = ${kernel(21).asUInt}\n")
-			printf(p"kernel22 = ${kernel(22).asUInt}\n")
-			printf(p"kernel23 = ${kernel(23).asUInt}\n")
-			printf(p"kernel24 = ${kernel(24).asUInt}\n")
-
-			printf(p"input0  = ${input(0).asUInt}\n")
-			printf(p"input1  = ${input(1).asUInt}\n")
-			printf(p"input2  = ${input(2).asUInt}\n")
-			printf(p"input3  = ${input(3).asUInt}\n")
-			printf(p"input4  = ${input(4).asUInt}\n")
-			printf(p"input5  = ${input(5).asUInt}\n")
-			printf(p"input6  = ${input(6).asUInt}\n")
-			printf(p"input7  = ${input(7).asUInt}\n")
-			printf(p"input8  = ${input(8).asUInt}\n")
-			printf(p"input9  = ${input(9).asUInt}\n")
-			printf(p"input10 = ${input(10).asUInt}\n")
-			printf(p"input11 = ${input(11).asUInt}\n")
-			printf(p"input12 = ${input(12).asUInt}\n")
-			printf(p"input13 = ${input(13).asUInt}\n")
-			printf(p"input14 = ${input(14).asUInt}\n")
-			printf(p"input15 = ${input(15).asUInt}\n")
-			printf(p"input16 = ${input(16).asUInt}\n")
-			printf(p"input17 = ${input(17).asUInt}\n")
-			printf(p"input18 = ${input(18).asUInt}\n")
-			printf(p"input19 = ${input(19).asUInt}\n")
-			printf(p"input20 = ${input(20).asUInt}\n")
-			printf(p"input21 = ${input(21).asUInt}\n")
-			printf(p"input22 = ${input(22).asUInt}\n")
-			printf(p"input23 = ${input(23).asUInt}\n")
-			printf(p"input24 = ${input(24).asUInt}\n")
-
-			printf(p"test1 = ${(input(24)*kernel(1)).asUInt}\n")
-			
-		}
+		
 
 		// Memory req/resp handling during load states
         val doResp = cmd.bits.inst.xd
-        //val stallReg = busy(rs2)
         val stallLoad = !io.mem.req.ready
         val stallResp = doResp && !io.resp.ready
 
         cmd.ready := !stallLoad && !stallResp && state === sIdle
 
         // PROC RESPONSE INTERFACE
-        when(state =/= sDone && state =/= sLoadKernelDone) {
+        when(state =/= sDone && state =/= sLoadKernelDone && state =/= sLoadInputDone) {
             io.resp.valid := false.B 
             io.resp.bits := DontCare
         }
-        //io.resp.bits.rd := cmd.bits.inst.rd
-        //io.resp.bits.data := 1.U
 
         io.busy := cmd.valid
         io.interrupt := false.B

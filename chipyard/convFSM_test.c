@@ -51,7 +51,7 @@ static inline uint64_t InputLoad(uint64_t input_ptr, uint64_t X) {
     // ROCC_INSTRUCTION_DSS(opcode, rd, rs1, rs2, funct7)
     // rs1 = kernel address
     // rs2 = kernel size
-    ROCC_INSTRUCTION_DSS(CUSTOM_OPCODE, result, input_ptr, 0, FUNCT7_DOLOADKERNEL);
+    ROCC_INSTRUCTION_DSS(CUSTOM_OPCODE, result, input_ptr, 0, FUNCT7_INPUTLOAD);
     return result;
 }
 
