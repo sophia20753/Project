@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define INPUT_SIZE 5
+#define INPUT_SIZE 32
 #define KERNEL_SIZE 1
 #define PADDING (KERNEL_SIZE / 2)
 #define OUTPUT_SIZE INPUT_SIZE 
@@ -61,12 +61,12 @@ int main() {
     int end = read_cycles();
 
     // Print output
-    for (int i = 0; i < OUTPUT_SIZE; i++) {
+    /*for (int i = 0; i < OUTPUT_SIZE; i++) {
         for (int j = 0; j < OUTPUT_SIZE; j++) {
             printf("%6d ", output[i][j]);
         }
         printf("\n");
-    }
+    }*/
 
     printf("My convolution took %lu cycles\n", end-start);
 

@@ -4,7 +4,7 @@
 #include "rocc.h"
 
 
-#define KERNEL_SIZE 3
+#define KERNEL_SIZE 1
 #define KERNEL_LEN (KERNEL_SIZE * KERNEL_SIZE)
 #define PACKED_KERNEL_LEN ((KERNEL_LEN + 3) / 4) // 4 values per 64-bit word
 
@@ -180,7 +180,11 @@ int main() {
     }
 
     //printf("Load kernel...\n");
+    int aStart = rdcycle();
     uint64_t success = doLoadKernel((uint64_t)&packed_kernel_data[0], pad);
+    int aEnd = rdcycle();
+    printf("Kernel Load execution took %lu cycles\n",aEnd-aStart);
+    
     //printf("RoCC instruction returned: %lu\n", success);
     
 
@@ -202,7 +206,6 @@ int main() {
 
     for (int i = 0; i < INPUT_SIZE/OUTPUT_TILE_SIZE; i++) {
         for (int j = 0; j < INPUT_SIZE/OUTPUT_TILE_SIZE; j++) {
-            int aStart = rdcycle();
             if (i == 0 && j == 0) {
                 tileType = TOP_LEFT; // Top-left corner
 
@@ -327,13 +330,19 @@ int main() {
             //    printf("Word%d at addr 0x%lx: 0x%016lx\n", i, (uintptr_t)&input_tile_packed[i], input_tile_packed[i]);
             //}
             //printf("Load input...\n");
+            aStart = rdcycle();
             success = InputLoad((uint64_t)&input_tile_packed[0], 0); // 0 = address of first element, can be adjusted as needed
+            aEnd = rdcycle();
+            printf("Input Load execution took %lu cycles\n",aEnd-aStart);  
             //printf("RoCC instruction returned: %lu\n", success);
             //printf("Input Loaded!\n");
             //printf("Starting computation... with tile type = %d\n",tileType);
             //printf("Output address: 0x%lx\n", (uintptr_t)&output_tile_packed[0]);
-            result = doCompute((uint64_t)&output_tile_packed[0], tileType); // 0 = tileType, can be adjusted as needed
 
+            aStart = rdcycle();
+            result = doCompute((uint64_t)&output_tile_packed[0], tileType); // 0 = tileType, can be adjusted as needed
+            aEnd = rdcycle();
+            printf("Tile compute execution took %lu cycles\n",aEnd-aStart);  
             // Write output tile to output array
             
             for (int i = 0; i < PACKED_OUTPUT_TILE_LEN; i++) {
@@ -358,8 +367,7 @@ int main() {
                     overflow[(outRowStart + tx) * OUTPUT_SIZE + (outColStart + ty)] = (result >> (tx * OUTPUT_TILE_SIZE + ty)) & 1;
                 }
             }  
-            int aEnd = rdcycle();
-            printf("Tile [%d,%d] execution took %lu cycles\n",i,j,aEnd-aStart);
+            //printf("Kernel Load execution took %lu cycles\n",aEnd-aStart);
         }
     }
 
