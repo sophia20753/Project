@@ -139,14 +139,14 @@ int main() {
 
 
     for (int i = 0; i < INPUT_LEN; i++) {
-        input[i] = (float)(i % 32); // Example input data
+        input[i] = (float)(i % 16); 
     }
     for (int i = 0; i < OUTPUT_LEN; i++) {
-        output[i] = 0; // Example input tile data
+        output[i] = 0; 
         overflow[i] = 0;
     }
 
-    printf("Start\n");
+    // Start measurement of entire process - comment out other cycle counts if using
     int start = rdcycle();
     
     // kernel processing
@@ -164,9 +164,6 @@ int main() {
         }
     }
 
-    //printf("Kernel size: %d x %d\n", KERNEL_SIZE, KERNEL_SIZE);
-    //printf("input tile size: %d x %d\n", INPUT_TILE_SIZE, INPUT_TILE_SIZE);
-
     int pad = 0;
     if (KERNEL_SIZE == 1) {
         pad = 0; // 1x1 kernel
@@ -179,25 +176,12 @@ int main() {
         exit(1);
     }
 
-    //printf("Load kernel...\n");
-    int aStart = rdcycle();
+    
+    // Uncomment if counting cycles for just load kernel
+    //int aStart = rdcycle();
     uint64_t success = doLoadKernel((uint64_t)&packed_kernel_data[0], pad);
-    int aEnd = rdcycle();
-    printf("Kernel Load execution took %lu cycles\n",aEnd-aStart);
-    
-    //printf("RoCC instruction returned: %lu\n", success);
-    
-
-    // input tile handling
-    
-
-    //for (int i = 0; i < INPUT_SIZE; i++) {
-    //    for (int j = 0; j < INPUT_SIZE; j++) {
-    //        printf("%2.0f ", input[i * INPUT_SIZE + j]);
-    //    }
-    //    printf("\n");
-    //}
-    //printf("Input address: 0x%lx\n", (uintptr_t)&input[0]);
+    //int aEnd = rdcycle();
+    //printf("Kernel Load execution took %lu cycles\n",aEnd-aStart);
 
     
 
@@ -294,24 +278,18 @@ int main() {
                 outRowStart = i * OUTPUT_TILE_SIZE;
                 outColStart = j * OUTPUT_TILE_SIZE;
             }
-            //printf("Tile type: %d, i: %d, j: %d, rowStart: %d, rowEnd: %d, colStart: %d, colEnd: %d\n", tileType, i, j, rowStart, rowEnd, colStart, colEnd);
+            
             count = 0;
             int tx = 0, ty = 0;
             for (int x = rowStart; x <= rowEnd; x++) {
                 ty = 0;
                 for (int y = colStart; y <= colEnd; y++) {
-                    //printf("x: %d, y: %d, tx: %d, ty: %d, flat: %d, tflat: %d\n", x, y, tx, ty, x * INPUT_SIZE + y, tx * INPUT_TILE_SIZE + ty);
                     input_tile[tx * INPUT_TILE_SIZE + ty] = input[x * INPUT_SIZE + y];
                     ty++;
                 }
                 tx++;
             }
-            //for (int a = 0 ; a < INPUT_TILE_SIZE; a++) {
-            //    for (int b = 0; b < INPUT_TILE_SIZE; b++) {
-            //        printf("%2.0f ", input_tile[a * INPUT_TILE_SIZE + b]);
-            //    }
-            //    printf("\n");
-            //}
+
             for (int w = 0; w < PACKED_INPUT_TILE_LEN; w++) {
                 input_tile_packed[w] = 0;
             }
@@ -320,30 +298,23 @@ int main() {
                 for (int c = 0; c < INPUT_TILE_SIZE; c++) {
                     int word_idx = idx / 4;
                     int offset = (idx % 4) * 16;
-                    //printf("r: %d, c: %d, val: %f\n",r,c, input_tile[r*INPUT_TILE_SIZE+c]);
                     input_tile_packed[word_idx] |= ((uint64_t)float_to_fixed88(input_tile[r*INPUT_TILE_SIZE+c]) << offset);
                     idx++;
                 }
             }
-            //printf("Packed input data:\n");
-            //for (int i = 0; i < PACKED_INPUT_TILE_LEN; i++) {
-            //    printf("Word%d at addr 0x%lx: 0x%016lx\n", i, (uintptr_t)&input_tile_packed[i], input_tile_packed[i]);
-            //}
-            //printf("Load input...\n");
-            aStart = rdcycle();
-            success = InputLoad((uint64_t)&input_tile_packed[0], 0); // 0 = address of first element, can be adjusted as needed
-            aEnd = rdcycle();
-            printf("Input Load execution took %lu cycles\n",aEnd-aStart);  
-            //printf("RoCC instruction returned: %lu\n", success);
-            //printf("Input Loaded!\n");
-            //printf("Starting computation... with tile type = %d\n",tileType);
-            //printf("Output address: 0x%lx\n", (uintptr_t)&output_tile_packed[0]);
+            
+            // Uncomment if counting cycles for just load input
+            //aStart = rdcycle();
+            success = InputLoad((uint64_t)&input_tile_packed[0], 0); 
+            //aEnd = rdcycle();
+            //printf("Input Load execution took %lu cycles\n",aEnd-aStart);  
 
-            aStart = rdcycle();
-            result = doCompute((uint64_t)&output_tile_packed[0], tileType); // 0 = tileType, can be adjusted as needed
-            aEnd = rdcycle();
-            printf("Tile compute execution took %lu cycles\n",aEnd-aStart);  
-            // Write output tile to output array
+            // Uncomment if counting cycles for just tile computation
+            //aStart = rdcycle();
+            result = doCompute((uint64_t)&output_tile_packed[0], tileType); 
+            //aEnd = rdcycle();
+            //printf("Tile compute execution took %lu cycles\n",aEnd-aStart);  
+
             
             for (int i = 0; i < PACKED_OUTPUT_TILE_LEN; i++) {
                 uint16_t v0 = (output_tile_packed[i] >> 0) & 0xFFFF;
@@ -367,7 +338,7 @@ int main() {
                     overflow[(outRowStart + tx) * OUTPUT_SIZE + (outColStart + ty)] = (result >> (tx * OUTPUT_TILE_SIZE + ty)) & 1;
                 }
             }  
-            //printf("Kernel Load execution took %lu cycles\n",aEnd-aStart);
+
         }
     }
 
@@ -375,15 +346,15 @@ int main() {
     printf("Done\n");
     printf("Convolution execution took %lu cycles\n",end-start);
 
-    //for (int i = 0; i < OUTPUT_SIZE; i++) {
-    //    for (int j = 0; j < OUTPUT_SIZE; j++) {
-    //        int16_t fx = (int16_t)(output[i * OUTPUT_SIZE + j] * 256.0f);
-    //        int integer = fx >> 8;
-    //        int fraction = fx & 0xFF;
-    //        printf("%d.%02d ", integer, fraction);
-    //    }
-    //printf("\n");
-    //}
+    for (int i = 0; i < OUTPUT_SIZE; i++) {
+        for (int j = 0; j < OUTPUT_SIZE; j++) {
+            int16_t fx = (int16_t)(output[i * OUTPUT_SIZE + j] * 256.0f);
+            int integer = fx >> 8;
+            int fraction = fx & 0xFF;
+            printf("%d.%02d ", integer, fraction);
+        }
+    printf("\n");
+    }
 
     for (int i = 0; i < OUTPUT_SIZE; i++) {
         for (int j = 0; j < OUTPUT_SIZE; j++) {
