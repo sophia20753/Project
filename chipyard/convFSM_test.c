@@ -4,7 +4,7 @@
 #include "rocc.h"
 
 
-#define KERNEL_SIZE 1
+#define KERNEL_SIZE 5
 #define KERNEL_LEN (KERNEL_SIZE * KERNEL_SIZE)
 #define PACKED_KERNEL_LEN ((KERNEL_LEN + 3) / 4) // 4 values per 64-bit word
 
@@ -119,6 +119,7 @@ int main() {
     
     float output[OUTPUT_LEN];
     float output_tile[OUTPUT_TILE_LEN];
+    uint16_t output_f88[OUTPUT_LEN];
     uint16_t output_tile_f88[OUTPUT_TILE_LEN];
     uint64_t output_tile_packed[PACKED_OUTPUT_TILE_LEN];
     int overflow[OUTPUT_LEN];
@@ -143,6 +144,7 @@ int main() {
     }
     for (int i = 0; i < OUTPUT_LEN; i++) {
         output[i] = 0; 
+        output_f88[i] = 0;
         overflow[i] = 0;
     }
 
@@ -326,15 +328,10 @@ int main() {
                 output_tile_f88[i * 4 + 1] = v1;
                 output_tile_f88[i * 4 + 2] = v2;
                 output_tile_f88[i * 4 + 3] = v3;
-
-                output_tile[i * 4 + 0] = fixed88_to_float(v0);
-                output_tile[i * 4 + 1] = fixed88_to_float(v1);
-                output_tile[i * 4 + 2] = fixed88_to_float(v2);
-                output_tile[i * 4 + 3] = fixed88_to_float(v3);
             }
             for (int tx = 0; tx < OUTPUT_TILE_SIZE; tx++) {
                 for (int ty = 0; ty < OUTPUT_TILE_SIZE; ty++) {
-                    output[(outRowStart + tx) * OUTPUT_SIZE + (outColStart + ty)] = output_tile[tx * OUTPUT_TILE_SIZE + ty];
+                    output_f88[(outRowStart + tx) * OUTPUT_SIZE + (outColStart + ty)] = output_tile_f88[tx * OUTPUT_TILE_SIZE + ty];
                     overflow[(outRowStart + tx) * OUTPUT_SIZE + (outColStart + ty)] = (result >> (tx * OUTPUT_TILE_SIZE + ty)) & 1;
                 }
             }  
@@ -346,16 +343,18 @@ int main() {
     printf("Done\n");
     printf("Convolution execution took %lu cycles\n",end-start);
 
+    printf("Output in Fixed Point 8.8 format:\n");
     for (int i = 0; i < OUTPUT_SIZE; i++) {
         for (int j = 0; j < OUTPUT_SIZE; j++) {
-            int16_t fx = (int16_t)(output[i * OUTPUT_SIZE + j] * 256.0f);
-            int integer = fx >> 8;
-            int fraction = fx & 0xFF;
-            printf("%d.%02d ", integer, fraction);
+            //int16_t fx = (output_f88[i * OUTPUT_SIZE + j]);
+            //int integer = fx >> 8;
+            //int fraction = fx & 0xFF;
+            printf("%04x ", output_f88[i * OUTPUT_SIZE + j]);
         }
     printf("\n");
     }
 
+    printf("Overflow bits: 0 = no overflow, 1 = overflow\n")
     for (int i = 0; i < OUTPUT_SIZE; i++) {
         for (int j = 0; j < OUTPUT_SIZE; j++) {
             printf("%d ", overflow[i*OUTPUT_SIZE+j]);

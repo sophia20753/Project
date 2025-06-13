@@ -3,7 +3,7 @@
 #include <string.h>
 
 #define INPUT_SIZE 32
-#define KERNEL_SIZE 1
+#define KERNEL_SIZE 5
 #define PADDING (KERNEL_SIZE / 2)
 #define OUTPUT_SIZE INPUT_SIZE 
 
